@@ -1,0 +1,75 @@
+{
+  "last_updated": "2026-06-23",
+  "files": {
+    "app/simulation/persona_agent.py": {
+      "purpose": "Defines 8 persona types with behavioral profiles. Generates UserProfile-compatible objects.",
+      "classes": ["PersonaType", "PersonaProfile"],
+      "key_functions": ["create_persona_user", "create_persona_batch"],
+      "risks": ["Dual weight system vs population_simulator", "Crypto trader fraud_history=10%", "Gig worker same UserType as salaried"],
+      "findings": ["_PERSONA_WEIGHTS differs from POPULATION_WEIGHTS", "income_range sampling biased toward lower end"]
+    },
+    "app/simulation/fraud_campaign_agent.py": {
+      "purpose": "Generates 6 fraud campaign types: ATO, card_testing, money_mule, velocity, synthetic_identity, cross_border.",
+      "classes": [],
+      "key_functions": ["generate_ato_campaign", "generate_card_testing_campaign", "generate_money_mule_campaign", "generate_velocity_attack_campaign", "generate_synthetic_identity_campaign", "generate_cross_border_campaign"],
+      "risks": ["Cross-border sets fraud_type=account_takeover (wrong)", "Card testing city='Unknown' (leakage)", "Money mule double-injection bug"],
+      "findings": ["CRITICAL: 3 bugs found", "Missing merchant_abuse campaign type"]
+    },
+    "app/simulation/fraud_ring_agent.py": {
+      "purpose": "Generates 5 fraud ring types with NetworkX graph structures.",
+      "classes": ["FraudRingGraph"],
+      "key_functions": ["generate_shared_device_ring", "generate_ip_cluster_ring", "generate_merchant_ring", "generate_mule_chain_ring", "generate_multi_vector_ring"],
+      "risks": ["Multi-vector ring has no graph", "IP cluster graph/txn IP mismatch", "Private 192.168.x.x IPs", "Fixed timing cadences"],
+      "findings": ["CRITICAL: 3 graph integrity bugs"]
+    },
+    "app/simulation/adversarial_agent.py": {
+      "purpose": "Applies 8 evasion mutation types to fraud transactions. Computes attack_difficulty 0-100.",
+      "classes": ["AdversarialAgent"],
+      "key_functions": ["apply_adversarial_mutations"],
+      "risks": ["reduce_amount claims difficulty without action", "use_trusted_merchant rate inconsistency", "noise txn ID collision"],
+      "findings": ["8 mutations all implemented", "shuffle-based selection is non-deterministic"]
+    },
+    "app/simulation/fraud_evolution_agent.py": {
+      "purpose": "4-generation fraud evolution tracker. Applies cumulative mutations per generation.",
+      "classes": ["EvolutionTracker", "FraudGeneration"],
+      "key_functions": ["generate_evolved_campaign", "get_evolution_tracker"],
+      "risks": ["Only 4 generations (no gen 5+)", "Evolution not adaptive (pre-scripted)", "Module singleton no reset"],
+      "findings": ["CRITICAL: no deep evolution beyond gen 4", "detection_rate field unused"]
+    },
+    "app/pipeline/fraud_pipeline.py": {
+      "purpose": "LangGraph pipeline orchestrating full fraud detection from feature retrieval to final decision.",
+      "classes": ["PipelineState"],
+      "key_functions": ["run_fraud_detection", "build_pipeline"],
+      "risks": ["_update_feature_store exceptions silently swallowed", "initial should_investigate=True default", "Auto-approve provides mock explainability"],
+      "findings": ["12 pipeline nodes", "feature store update is fire-and-forget"]
+    },
+    "app/services/consensus_engine.py": {
+      "purpose": "Aggregates 5 agent risk scores into blended risk_score, agreement_score, confidence_score.",
+      "classes": [],
+      "key_functions": ["compute_consensus"],
+      "risks": ["Default score=50 when agent missing (anchoring bias)", "agreement_score formula uses std_dev*1.5 not 2"],
+      "findings": ["Weights sum to 1.0", "Confidence formula complex but sound"]
+    },
+    "app/services/fast_screening.py": {
+      "purpose": "Stage 1 fast screening with 7 components. Routes to deep investigation or auto-approve.",
+      "classes": [],
+      "key_functions": ["screen"],
+      "risks": ["Device novelty score varies by user profile settings", "micro_txn rule fires at <50 INR (card testing partial detection)", "Normalization formula complex"],
+      "findings": ["7 components", "Latency target <20ms achievable (no I/O in function itself)"]
+    },
+    "app/services/graph_intelligence.py": {
+      "purpose": "In-memory NetworkX undirected graph for fraud ring detection.",
+      "classes": ["FraudGraph"],
+      "key_functions": ["analyze", "add_transaction", "get_network_summary"],
+      "risks": ["Graph is undirected (ring generators use directed)", "No persistence (restart resets)", "Mule pattern check very specific (single formula)", "No community detection algorithm"],
+      "findings": ["CRITICAL: graph type mismatch with ring generators", "No persistence between restarts"]
+    },
+    "app/main.py": {
+      "purpose": "FastAPI app with 30+ endpoints covering detection, simulation, feedback, metrics.",
+      "classes": [],
+      "key_functions": ["detect_fraud", "simulate_full", "simulate_campaign", "metrics_evaluation"],
+      "risks": ["/metrics/evaluation uses expected_label as detection = always 100% accuracy", "/simulate/evolve hard-capped at 4 generations", "CORS allow_origins=['*'] (security risk)"],
+      "findings": ["30+ endpoints", "Evolution hard-limited to 4 gen", "Self-evaluation inflates metrics"]
+    }
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "user_001": {
+    "user_id": "user_001",
+    "user_type": "student",
+    "risk_category": "low",
+    "spending_profile": {
+      "avg_transaction_amount": 350,
+      "max_transaction_amount": 2000,
+      "monthly_spend_limit": 8000,
+      "preferred_categories": ["food", "education", "entertainment", "clothing"],
+      "typical_transaction_hours": [10, 11, 12, 13, 18, 19, 20, 21]
+    },
+    "travel_profile": {
+      "frequent_countries": ["India"],
+      "frequent_cities": ["Mumbai", "Pune"],
+      "travel_frequency": "rare",
+      "avg_trip_duration_days": 0
+    },
+    "thresholds": {
+      "amount_multiplier": 4.0,
+      "velocity_window_minutes": 60,
+      "max_txn_per_hour": 4,
+      "geo_change_tolerance_km": 50,
+      "new_device_risk_weight": 0.35,
+      "new_merchant_risk_weight": 0.1
+    },
+    "known_devices": ["dev_mob_001", "dev_mob_002"],
+    "known_locations": ["Mumbai:India", "Pune:India"],
+    "account_age_days": 180,
+    "total_transactions": 145,
+    "fraud_history": false
+  },
+  "user_002": {
+    "user_id": "user_002",
+    "user_type": "traveler",
+    "risk_category": "medium",
+    "spending_profile": {
+      "avg_transaction_amount": 4500,
+      "max_transaction_amount": 50000,
+      "monthly_spend_limit": 200000,
+      "preferred_categories": ["travel", "hotels", "restaurants", "entertainment"],
+      "typical_transaction_hours": [8, 9, 10, 12, 13, 18, 19, 20, 21, 22]
+    },
+    "travel_profile": {
+      "frequent_countries": ["India", "UAE", "UK", "Singapore", "Thailand"],
+      "frequent_cities": ["Mumbai", "Dubai", "London", "Singapore", "Bangkok"],
+      "travel_frequency": "very_frequent",
+      "avg_trip_duration_days": 7
+    },
+    "thresholds": {
+      "amount_multiplier": 5.0,
+      "velocity_window_minutes": 60,
+      "max_txn_per_hour": 8,
+      "geo_change_tolerance_km": 5000,
+      "new_device_risk_weight": 0.15,
+      "new_merchant_risk_weight": 0.08
+    },
+    "known_devices": ["dev_mob_003", "dev_tab_001"],
+    "known_locations": ["Mumbai:India", "Dubai:UAE", "London:UK", "Singapore:Singapore"],
+    "account_age_days": 1200,
+    "total_transactions": 2340,
+    "fraud_history": false
+  },
+  "user_003": {
+    "user_id": "user_003",
+    "user_type": "business_owner",
+    "risk_category": "medium",
+    "spending_profile": {
+      "avg_transaction_amount": 15000,
+      "max_transaction_amount": 500000,
+      "monthly_spend_limit": 2000000,
+      "preferred_categories": ["wholesale", "suppliers", "travel", "restaurants", "technology"],
+      "typical_transaction_hours": [9, 10, 11, 12, 14, 15, 16, 17]
+    },
+    "travel_profile": {
+      "frequent_countries": ["India", "China", "UAE"],
+      "frequent_cities": ["Mumbai", "Delhi", "Guangzhou", "Dubai"],
+      "travel_frequency": "occasional",
+      "avg_trip_duration_days": 5
+    },
+    "thresholds": {
+      "amount_multiplier": 6.0,
+      "velocity_window_minutes": 60,
+      "max_txn_per_hour": 15,
+      "geo_change_tolerance_km": 500,
+      "new_device_risk_weight": 0.25,
+      "new_merchant_risk_weight": 0.12
+    },
+    "known_devices": ["dev_mob_004", "dev_desk_001", "dev_tab_002"],
+    "known_locations": ["Mumbai:India", "Delhi:India", "Dubai:UAE"],
+    "account_age_days": 2100,
+    "total_transactions": 8900,
+    "fraud_history": false
+  },
+  "user_004": {
+    "user_id": "user_004",
+    "user_type": "high_net_worth",
+    "risk_category": "low",
+    "spending_profile": {
+      "avg_transaction_amount": 45000,
+      "max_transaction_amount": 5000000,
+      "monthly_spend_limit": 10000000,
+      "preferred_categories": ["luxury", "travel", "investments", "fine_dining", "real_estate"],
+      "typical_transaction_hours": [10, 11, 12, 14, 15, 16, 19, 20]
+    },
+    "travel_profile": {
+      "frequent_countries": ["India", "UK", "USA", "France", "Italy", "UAE"],
+      "frequent_cities": ["Mumbai", "London", "New York", "Paris", "Dubai"],
+      "travel_frequency": "frequent",
+      "avg_trip_duration_days": 10
+    },
+    "thresholds": {
+      "amount_multiplier": 8.0,
+      "velocity_window_minutes": 60,
+      "max_txn_per_hour": 10,
+      "geo_change_tolerance_km": 8000,
+      "new_device_risk_weight": 0.2,
+      "new_merchant_risk_weight": 0.1
+    },
+    "known_devices": ["dev_mob_005", "dev_desk_002", "dev_tab_003"],
+    "known_locations": ["Mumbai:India", "London:UK", "New York:USA", "Paris:France", "Dubai:UAE"],
+    "account_age_days": 3650,
+    "total_transactions": 15600,
+    "fraud_history": false
+  },
+  "user_005": {
+    "user_id": "user_005",
+    "user_type": "high_risk",
+    "risk_category": "high",
+    "spending_profile": {
+      "avg_transaction_amount": 800,
+      "max_transaction_amount": 5000,
+      "monthly_spend_limit": 20000,
+      "preferred_categories": ["gambling", "cash_advance", "electronics"],
+      "typical_transaction_hours": [0, 1, 2, 3, 22, 23]
+    },
+    "travel_profile": {
+      "frequent_countries": ["India"],
+      "frequent_cities": ["Mumbai"],
+      "travel_frequency": "rare",
+      "avg_trip_duration_days": 0
+    },
+    "thresholds": {
+      "amount_multiplier": 2.0,
+      "velocity_window_minutes": 30,
+      "max_txn_per_hour": 3,
+      "geo_change_tolerance_km": 30,
+      "new_device_risk_weight": 0.5,
+      "new_merchant_risk_weight": 0.3
+    },
+    "known_devices": ["dev_mob_006"],
+    "known_locations": ["Mumbai:India"],
+    "account_age_days": 90,
+    "total_transactions": 230,
+    "fraud_history": true
+  }
+}

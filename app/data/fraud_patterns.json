@@ -1,0 +1,101 @@
+{
+  "account_takeover": {
+    "name": "Account Takeover",
+    "description": "Attacker gains access to a legitimate account and drains funds",
+    "severity": "critical",
+    "signals": {
+      "new_device": 0.9,
+      "password_reset_recent": 0.85,
+      "contact_info_changed": 0.8,
+      "unusual_location": 0.75,
+      "high_amount": 0.7,
+      "velocity_spike": 0.65,
+      "night_transaction": 0.5
+    },
+    "min_match_score": 0.65,
+    "typical_sequence": ["new_device_login", "password_reset", "contact_change", "large_transfer"]
+  },
+  "card_testing": {
+    "name": "Card Testing",
+    "description": "Fraudster tests stolen card details with small amounts before large purchase",
+    "severity": "high",
+    "signals": {
+      "micro_transactions": 0.95,
+      "rapid_succession": 0.9,
+      "new_merchant": 0.7,
+      "new_device": 0.6,
+      "international": 0.5,
+      "online_channel": 0.6
+    },
+    "min_match_score": 0.70,
+    "typical_sequence": ["small_txn_1", "small_txn_2", "small_txn_3", "large_purchase"]
+  },
+  "velocity_fraud": {
+    "name": "Velocity Fraud",
+    "description": "Rapid succession of transactions to exhaust credit/account balance",
+    "severity": "high",
+    "signals": {
+      "high_txn_count_1h": 0.95,
+      "amount_escalation": 0.8,
+      "multiple_merchants": 0.7,
+      "multiple_locations": 0.75,
+      "new_device": 0.6
+    },
+    "min_match_score": 0.65,
+    "typical_sequence": ["txn_burst_start", "multiple_txns", "account_drain"]
+  },
+  "refund_fraud": {
+    "name": "Refund Fraud",
+    "description": "Systematic purchase-and-refund loops to extract money",
+    "severity": "medium",
+    "signals": {
+      "refund_purchase_ratio": 0.9,
+      "same_merchant_refund": 0.85,
+      "pattern_repetition": 0.8,
+      "moderate_amounts": 0.5
+    },
+    "min_match_score": 0.70,
+    "typical_sequence": ["purchase", "refund", "purchase", "refund"]
+  },
+  "merchant_abuse": {
+    "name": "Merchant Abuse",
+    "description": "Multiple accounts targeting the same merchant for refund loops or fraud",
+    "severity": "high",
+    "signals": {
+      "merchant_concentration": 0.9,
+      "multiple_accounts": 0.85,
+      "shared_device_merchant": 0.8,
+      "refund_pattern": 0.75
+    },
+    "min_match_score": 0.65,
+    "typical_sequence": ["account_1_purchase", "account_2_purchase", "coordinated_refunds"]
+  },
+  "mule_network": {
+    "name": "Mule Network",
+    "description": "Money collected through mule accounts for laundering",
+    "severity": "critical",
+    "signals": {
+      "account_creation_recent": 0.8,
+      "incoming_transfers_only": 0.9,
+      "rapid_outgoing_transfers": 0.95,
+      "shared_device_network": 0.85,
+      "shared_ip_network": 0.8
+    },
+    "min_match_score": 0.70,
+    "typical_sequence": ["account_creation", "money_collection", "rapid_disperse"]
+  },
+  "fraud_ring": {
+    "name": "Fraud Ring",
+    "description": "Coordinated network of accounts with shared devices and merchants",
+    "severity": "critical",
+    "signals": {
+      "shared_devices": 0.95,
+      "shared_merchants": 0.85,
+      "coordinated_timing": 0.9,
+      "graph_centrality": 0.85,
+      "multiple_accounts_same_device": 0.9
+    },
+    "min_match_score": 0.75,
+    "typical_sequence": ["multiple_accounts", "shared_devices", "coordinated_transactions"]
+  }
+}

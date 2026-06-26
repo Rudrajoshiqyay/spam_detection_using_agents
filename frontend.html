@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FraudGuard AI — Test Console</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--panel:#111827;--border:#1f2937;--text:#e2e8f0;--muted:#6b7280;
+  --green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;
+  --card:#1a2035;--cyan:#06b6d4;--orange:#f97316;--pink:#ec4899;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+header{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+header h1{font-size:16px;font-weight:700}
+.badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#1e3a5f;color:#60a5fa;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:#374151}
+.dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot.err{background:var(--red)}
+#hstatus{font-size:11px;color:var(--muted)}
+
+/* TAB BAR */
+.tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border);background:var(--panel);padding:0 16px;flex-shrink:0}
+.tab-btn{padding:10px 20px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;letter-spacing:.04em}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-btn.sim-active{color:var(--purple);border-bottom-color:var(--purple)}
+
+.layout{display:grid;grid-template-columns:240px 1fr;flex:1;min-height:0;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.sec-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.sec-divider{border-top:1px solid var(--border);margin:4px 0 8px}
+
+.scenario-list{display:flex;flex-direction:column;gap:4px}
+.sbtn{padding:9px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:all .15s;display:flex;justify-content:space-between;align-items:center}
+.sbtn:hover{border-color:var(--blue);background:#1a2540}
+.sbtn.active{border-color:var(--purple);background:#1e1040;color:#c4b5fd}
+.sbtn .pill{font-size:9px;padding:2px 6px;border-radius:8px;font-weight:700}
+.pill.fraud{background:#7f1d1d;color:#fca5a5}
+.pill.legit{background:#064e3b;color:#6ee7b7}
+.pill.sim{background:#3b0764;color:#c4b5fd}
+
+label{font-size:11px;color:var(--muted);display:block;margin-bottom:3px;margin-top:8px}
+input,select{width:100%;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;outline:none}
+input:focus,select:focus{border-color:var(--blue)}
+.chk-row{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted)}
+.chk-row input{width:auto}
+
+.run-btn{width:100%;padding:11px;border-radius:6px;border:none;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px}
+.run-btn:hover{opacity:.9}
+.run-btn:disabled{opacity:.4;cursor:not-allowed}
+.run-btn.sim{background:linear-gradient(135deg,#6d28d9,#0e7490)}
+.run-btn.evo{background:linear-gradient(135deg,#b91c1c,#7c3aed)}
+.run-btn.ring{background:linear-gradient(135deg,#065f46,#0e7490)}
+.run-btn.pop{background:linear-gradient(135deg,#1d4ed8,#0e7490)}
+.run-btn.leak{background:linear-gradient(135deg,#92400e,#b91c1c)}
+.judge-btn{width:100%;padding:11px;border-radius:6px;border:1px solid var(--purple);background:transparent;color:#c4b5fd;font-size:12px;font-weight:700;cursor:pointer;margin-top:4px}
+.judge-btn:hover{background:#1e1040}
+.refresh-btn{width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;margin-top:4px}
+.refresh-btn:hover{color:var(--text);border-color:var(--cyan)}
+
+/* MAIN */
+.main{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+
+/* Metrics strip */
+.metrics-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.mcard{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center}
+.mval{font-size:20px;font-weight:800;line-height:1}
+.mlbl{font-size:9px;color:var(--muted);margin-top:2px}
+
+/* Pipeline viz */
+.pipeline-wrap{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.pipeline-header{padding:10px 16px;font-size:11px;font-weight:700;color:var(--muted);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.pipeline-nodes{display:flex;align-items:stretch;padding:14px 12px;gap:0;overflow-x:auto}
+.pnode{text-align:center;flex:1;min-width:70px;position:relative}
+.pnode-box{margin:0 3px;padding:8px 4px;border-radius:6px;border:1px solid var(--border);background:var(--card);font-size:9px;font-weight:700;line-height:1.3;transition:all .3s}
+.pnode-box.active{border-color:var(--yellow);background:#1a150a;box-shadow:0 0 10px rgba(245,158,11,.3)}
+.pnode-box.done-fraud{border-color:var(--red);background:#1a0a0a}
+.pnode-box.done-legit{border-color:var(--green);background:#0a1a0f}
+.pnode-box.skipped{opacity:.35}
+.pnode-arrow{position:absolute;right:-8px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--muted);z-index:1}
+.pnode-count{font-size:8px;color:var(--muted);margin-top:3px}
+
+/* Result card */
+.result-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none}
+.result-card.visible{display:block}
+.result-header{padding:14px 16px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border)}
+.risk-num{font-size:36px;font-weight:800;line-height:1}
+.decision-chip{padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;border:1px solid}
+.APPROVED{background:#064e3b22;color:#10b981;border-color:#10b981}
+.MONITORING{background:#78350f22;color:#f59e0b;border-color:#f59e0b}
+.STEP_UP_AUTH{background:#4c1d9522;color:#a78bfa;border-color:#a78bfa}
+.TEMPORARY_HOLD{background:#7f1d1d22;color:#f97316;border-color:#f97316}
+.BLOCKED{background:#7f1d1d22;color:#ef4444;border-color:#ef4444}
+.ESCALATED{background:#1a1a2e;color:#f87171;border-color:#ef4444}
+.result-meta{font-size:11px;color:var(--muted);line-height:1.8}
+.risk-bar{height:6px;background:var(--border);border-radius:3px;margin:0 16px 14px;overflow:hidden}
+.risk-fill{height:100%;border-radius:3px;transition:width .5s}
+.result-body{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border)}
+.result-section{padding:14px 16px;border-right:1px solid var(--border)}
+.result-section:last-child{border-right:none}
+.rs-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.agents-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.agent-box{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px}
+.ab-name{font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.ab-score{font-size:18px;font-weight:800}
+.ab-finding{font-size:9px;color:var(--muted);margin-top:2px}
+.sig-row{margin-bottom:8px}
+.sig-top{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.sig-bar{background:var(--border);border-radius:3px;height:7px;overflow:hidden}
+.sig-fill{height:100%;border-radius:3px;transition:width .4s}
+.wf-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.wf-label{font-size:10px;color:var(--muted);width:90px;flex-shrink:0;text-align:right}
+.wf-track{flex:1;background:var(--border);border-radius:3px;height:16px;overflow:hidden}
+.wf-bar{height:100%;border-radius:3px;display:flex;align-items:center;padding:0 5px;font-size:9px;font-weight:700;color:#fff;min-width:2px}
+.wf-val{width:36px;font-size:10px;font-weight:700;flex-shrink:0;text-align:right}
+.cf-box{background:var(--bg);border:1px solid #3730a3;border-radius:6px;padding:10px;font-size:11px;color:#a5b4fc;line-height:1.6}
+.gantt-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.gl{font-size:9px;color:var(--muted);width:100px;flex-shrink:0;text-align:right}
+.gt{flex:1;background:var(--border);border-radius:2px;height:14px;overflow:hidden}
+.gb{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:3px;font-size:8px;font-weight:700;color:#fff}
+.gv{font-size:9px;color:var(--muted);width:38px;flex-shrink:0}
+.story{font-size:11px;line-height:1.7;color:var(--muted);padding:12px;background:var(--bg);border-radius:6px;max-height:140px;overflow-y:auto;border:1px solid var(--border)}
+
+/* Confusion matrix */
+.cm{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.cm-cell{border-radius:5px;padding:8px;text-align:center}
+.cm-cell.tp{background:#064e3b33}
+.cm-cell.fp{background:#7f1d1d33}
+.cm-cell.fn{background:#451a0333}
+.cm-cell.tn{background:#1e3a5f33}
+.cm-big{font-size:20px;font-weight:800}
+.cm-lbl{font-size:9px;color:rgba(255,255,255,.5)}
+.cm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px}
+.cms{text-align:center;background:var(--card);border-radius:4px;padding:5px}
+.cms-val{font-size:13px;font-weight:700;color:var(--blue)}
+.cms-lbl{font-size:9px;color:var(--muted)}
+
+/* Log */
+.log{font-size:10px;max-height:140px;overflow-y:auto}
+.log-row{display:flex;gap:8px;padding:3px 6px;border-radius:3px;margin-bottom:2px;border-left:2px solid transparent}
+.log-row.fr{border-left-color:var(--red);background:#1c0a0a}
+.log-row.lg{border-left-color:var(--green);background:#0a1a0f}
+.log-row.iv{border-left-color:var(--yellow);background:#1a150a}
+.log-ts{color:var(--muted);flex-shrink:0}
+.log-dec{font-weight:700;flex-shrink:0;width:110px;overflow:hidden}
+.log-risk{flex-shrink:0}
+
+#spinner{display:none;padding:40px;text-align:center;color:var(--muted);font-size:14px}
+
+/* ─── SIMULATION LAB STYLES ─── */
+.sim-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sim-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sim-panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px}
+.sim-panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sim-stat-big{font-size:28px;font-weight:800;line-height:1}
+.sim-stat-lbl{font-size:9px;color:var(--muted);margin-top:2px}
+
+/* Persona bar */
+.pb-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.pb-label{font-size:10px;color:var(--muted);width:130px;flex-shrink:0}
+.pb-track{flex:1;background:var(--border);border-radius:3px;height:14px;overflow:hidden}
+.pb-fill{height:100%;border-radius:3px;transition:width .5s;display:flex;align-items:center;padding-left:4px;font-size:8px;font-weight:700;color:#fff}
+.pb-val{width:32px;font-size:10px;font-weight:700;flex-shrink:0;text-align:right}
+
+/* Evolution arc */
+.evo-row{display:flex;align-items:center;gap:0;margin-bottom:8px}
+.evo-gen{flex:1;text-align:center;padding:8px 4px;border-radius:6px;border:1px solid var(--border);margin:0 3px;font-size:10px;font-weight:700}
+.evo-arrow{color:var(--muted);font-size:14px;flex-shrink:0}
+.evo-g1{background:#1a2a1a;border-color:#10b981;color:#10b981}
+.evo-g2{background:#2a2a1a;border-color:#f59e0b;color:#f59e0b}
+.evo-g3{background:#2a1a1a;border-color:#f97316;color:#f97316}
+.evo-g4{background:#3a0a0a;border-color:#ef4444;color:#ef4444}
+
+/* Event badge */
+.event-badge{display:inline-block;padding:3px 8px;border-radius:10px;font-size:9px;font-weight:700;background:#1e3a5f;color:#60a5fa;margin:2px}
+.event-badge.high{background:#451a03;color:#fcd34d}
+
+/* Table */
+.sim-table{width:100%;border-collapse:collapse;font-size:10px}
+.sim-table th{padding:5px 8px;text-align:left;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);font-size:9px;text-transform:uppercase}
+.sim-table td{padding:5px 8px;border-bottom:1px solid #1f293755;vertical-align:middle}
+.sim-table tr:last-child td{border-bottom:none}
+.sim-table tr:hover td{background:#ffffff08}
+.diff-chip{padding:2px 7px;border-radius:8px;font-size:9px;font-weight:700}
+.diff-easy{background:#064e3b44;color:#10b981}
+.diff-med{background:#78350f44;color:#f59e0b}
+.diff-hard{background:#7f1d1d44;color:#ef4444}
+
+/* Leakage */
+.leak-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1f293755}
+.leak-row:last-child{border-bottom:none}
+.leak-feat{font-size:11px;font-weight:600;width:150px;flex-shrink:0}
+.leak-verdict{font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700;flex-shrink:0}
+.lv-ok{background:#064e3b44;color:#10b981}
+.lv-warn{background:#78350f44;color:#f59e0b}
+.lv-crit{background:#7f1d1d44;color:#ef4444}
+.leak-detail{font-size:9px;color:var(--muted);flex:1}
+
+/* Verdict banner */
+.verdict-banner{padding:10px 14px;border-radius:6px;font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.vb-pass{background:#064e3b44;color:#10b981;border:1px solid #10b98155}
+.vb-warn{background:#78350f44;color:#f59e0b;border:1px solid #f59e0b55}
+.vb-reject{background:#7f1d1d44;color:#ef4444;border:1px solid #ef444455}
+
+/* Difficulty band table */
+.band-table{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.band-cell{background:var(--bg);border-radius:5px;padding:8px;text-align:center}
+.band-lbl{font-size:9px;color:var(--muted);margin-bottom:4px}
+.band-val{font-size:16px;font-weight:700}
+
+/* Sim log */
+.sim-log{font-size:10px;max-height:100px;overflow-y:auto}
+.sim-log-row{padding:3px 6px;margin-bottom:2px;border-left:2px solid var(--purple);background:#1a1030;border-radius:0 3px 3px 0;color:var(--muted);font-size:9px}
+
+/* Income bars */
+.inc-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:10px}
+.inc-label{width:40px;color:var(--muted);flex-shrink:0;font-size:9px}
+.inc-bar{flex:1;background:var(--border);border-radius:3px;height:10px;overflow:hidden}
+.inc-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#3b82f6,#8b5cf6)}
+.inc-val{width:70px;text-align:right;color:var(--blue);font-size:9px;flex-shrink:0}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:18px">&#x1F6E1;&#xFE0F;</div>
+  <h1>FraudGuard AI</h1>
+  <span class="badge">v2.0 — Sim Platform</span>
+  <span id="hstatus" style="margin-left:auto">Connecting...</span>
+  <div class="dot" id="hdot"></div>
+</header>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-det" onclick="switchTab('det')">&#x1F4E1; Detection Console</button>
+  <button class="tab-btn" id="tab-sim" onclick="switchTab('sim')">&#x1F9EA; Simulation Lab</button>
+</div>
+
+<div class="layout">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <div class="sidebar">
+
+    <!-- Detection Controls (tab 1) -->
+    <div id="sb-det">
+      <div>
+        <div class="sec-title">Demo Scenarios</div>
+        <div class="scenario-list">
+          <button class="sbtn active" onclick="selectScenario(this,'account_takeover')">Account Takeover <span class="pill fraud">FRAUD</span></button>
+          <button class="sbtn" onclick="selectScenario(this,'card_testing')">Card Testing <span class="pill fraud">FRAUD</span></button>
+          <button class="sbtn" onclick="selectScenario(this,'impossible_travel')">Impossible Travel <span class="pill fraud">FRAUD</span></button>
+          <button class="sbtn" onclick="selectScenario(this,'velocity_fraud')">Velocity Attack <span class="pill fraud">FRAUD</span></button>
+          <button class="sbtn" onclick="selectScenario(this,'legitimate_travel')">Legit Travel <span class="pill legit">SAFE</span></button>
+        </div>
+        <button class="run-btn" id="run-btn" onclick="runScenario()">&#x25B6; Run Detection</button>
+      </div>
+
+      <div class="sec-divider"></div>
+
+      <div>
+        <div class="sec-title">Custom Transaction</div>
+        <label>User</label>
+        <select id="c-user">
+          <option value="user_001">user_001 — student</option>
+          <option value="user_002">user_002 — traveler</option>
+          <option value="user_003">user_003 — professional</option>
+          <option value="user_004">user_004 — business owner</option>
+          <option value="user_005">user_005 — high risk</option>
+        </select>
+        <label>Amount (INR)</label>
+        <input type="number" id="c-amount" value="5000" min="1">
+        <label>City</label>
+        <input type="text" id="c-city" value="Mumbai">
+        <label>Country</label>
+        <input type="text" id="c-country" value="India">
+        <label>Device</label>
+        <select id="c-device">
+          <option value="dev_mob_001">Known Mobile (trusted)</option>
+          <option value="dev_unknown_999">Unknown Device (suspicious)</option>
+        </select>
+        <label>Category</label>
+        <select id="c-cat">
+          <option>restaurants</option><option>electronics</option>
+          <option>wire_transfer</option><option>luxury</option>
+          <option>grocery</option><option>gambling</option>
+          <option>cryptocurrency</option>
+        </select>
+        <label>International?</label>
+        <select id="c-intl">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+        <button class="run-btn" id="custom-btn" onclick="runCustom()" style="margin-top:10px">&#x25B6; Run Custom</button>
+      </div>
+
+      <div class="sec-divider"></div>
+
+      <div>
+        <div class="sec-title">Batch Test</div>
+        <label>Count</label>
+        <input type="number" id="b-count" value="5" min="1" max="20">
+        <label>Fraud % (mixed)</label>
+        <input type="range" id="b-fraud" min="0" max="100" value="50" oninput="document.getElementById('b-fraud-val').textContent=this.value+'%'">
+        <div style="font-size:11px;color:var(--muted);text-align:right" id="b-fraud-val">50%</div>
+        <button class="run-btn" id="batch-btn" onclick="runBatch()" style="background:linear-gradient(135deg,#065f46,#1e40af)">&#x25B6; Run Batch</button>
+        <button class="judge-btn" onclick="runDemo()">&#x26A1; Auto Demo (8 txns)</button>
+      </div>
+    </div>
+
+    <!-- Simulation Controls (tab 2) -->
+    <div id="sb-sim" style="display:none">
+
+      <div>
+        <div class="sec-title">Population</div>
+        <label>User Count</label>
+        <input type="number" id="sim-pop-count" value="100" min="10" max="2000">
+        <div class="chk-row"><input type="checkbox" id="sim-pop-domestic" checked><span>Domestic only (India)</span></div>
+        <button class="run-btn pop" onclick="simPopulation()">&#x1F465; Generate Population</button>
+      </div>
+
+      <div class="sec-divider"></div>
+
+      <div>
+        <div class="sec-title">Fraud Campaign</div>
+        <label>Campaign Type</label>
+        <select id="sim-camp-type">
+          <option value="">Random</option>
+          <option value="account_takeover">Account Takeover</option>
+          <option value="card_testing">Card Testing</option>
+          <option value="money_mule">Money Mule</option>
+          <option value="velocity_attack">Velocity Attack</option>
+          <option value="synthetic_identity">Synthetic Identity</option>
+          <option value="cross_border">Cross-Border Fraud</option>
+        </select>
+        <div class="chk-row"><input type="checkbox" id="sim-camp-adv" checked><span>Apply adversarial mutations</span></div>
+        <label>Difficulty Target (0-100)</label>
+        <input type="number" id="sim-camp-diff" value="60" min="0" max="100">
+        <button class="run-btn sim" onclick="simCampaign()">&#x1F3AF; Run Campaign</button>
+      </div>
+
+      <div class="sec-divider"></div>
+
+      <div>
+        <div class="sec-title">Fraud Ring</div>
+        <label>Ring Type</label>
+        <select id="sim-ring-type">
+          <option value="">Random</option>
+          <option value="shared_device_ring">Shared Device Ring</option>
+          <option value="ip_cluster_ring">IP Cluster Ring</option>
+          <option value="merchant_ring">Merchant Ring</option>
+          <option value="mule_chain_ring">Mule Chain Ring</option>
+          <option value="multi_vector_ring">Multi-Vector Ring</option>
+        </select>
+        <div class="chk-row"><input type="checkbox" id="sim-ring-adv" checked><span>Apply adversarial mutations</span></div>
+        <button class="run-btn ring" onclick="simRing()">&#x1F578; Run Ring</button>
+      </div>
+
+      <div class="sec-divider"></div>
+
+      <div>
+        <div class="sec-title">Fraud Evolution</div>
+        <label>Campaign Type</label>
+        <select id="sim-evo-type">
+          <option value="">Random</option>
+          <option value="account_takeover">Account Takeover</option>
+          <option value="card_testing">Card Testing</option>
+          <option value="velocity_attack">Velocity Attack</option>
+        </select>
+        <label>Generations (1-4)</label>
+        <input type="number" id="sim-evo-gens" value="4" min="1" max="4">
+        <button class="run-btn evo" onclick="simEvolve()">&#x1F9EC; Evolve Campaign</button>
+      </div>
+
+      <div class="sec-divider"></div>
+
+      <div>
+        <div class="sec-title">Quality Checks</div>
+        <button class="run-btn leak" onclick="simLeakage()">&#x1F50D; Label Leakage Check</button>
+        <button class="refresh-btn" onclick="refreshSimMetrics()">&#x21BB; Refresh All Metrics</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <div class="main">
+
+    <!-- ─── DETECTION TAB ─── -->
+    <div id="pane-det">
+
+      <!-- Metrics strip -->
+      <div class="metrics-strip">
+        <div class="mcard"><div class="mval" id="m-total">0</div><div class="mlbl">Processed</div></div>
+        <div class="mcard"><div class="mval" style="color:var(--red)" id="m-fraud">0</div><div class="mlbl">Frauds</div></div>
+        <div class="mcard"><div class="mval" style="color:var(--yellow)" id="m-rate">—</div><div class="mlbl">Fraud Rate</div></div>
+        <div class="mcard"><div class="mval" style="color:var(--blue)" id="m-avg">—</div><div class="mlbl">Avg Latency</div></div>
+        <div class="mcard"><div class="mval" style="color:var(--purple)" id="m-p95">—</div><div class="mlbl">P95 Latency</div></div>
+        <div class="mcard"><div class="mval" style="color:var(--green)" id="m-acc">—</div><div class="mlbl">Accuracy</div></div>
+      </div>
+
+      <!-- Pipeline visualization -->
+      <div class="pipeline-wrap">
+        <div class="pipeline-header">
+          <span>Pipeline Execution</span>
+          <span id="pipe-label" style="color:var(--muted)">Run a scenario to see flow</span>
+        </div>
+        <div class="pipeline-nodes" id="pipe-nodes"></div>
+      </div>
+
+      <!-- Spinner -->
+      <div id="spinner">&#x23F3; Running pipeline...</div>
+
+      <!-- Result card -->
+      <div class="result-card" id="result-card">
+        <div class="result-header">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:2px">RISK SCORE</div>
+            <div class="risk-num" id="r-risk">—</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">DECISION</div>
+            <div class="decision-chip" id="r-decision">—</div>
+          </div>
+          <div class="result-meta" id="r-meta"></div>
+          <div style="margin-left:auto;text-align:right;font-size:11px;color:var(--muted)" id="r-latency"></div>
+        </div>
+        <div class="risk-bar"><div class="risk-fill" id="r-bar" style="width:0%"></div></div>
+        <div class="result-body">
+          <div class="result-section">
+            <div class="rs-title">Agent Scores</div>
+            <div class="agents-grid" id="r-agents"></div>
+            <div class="rs-title" style="margin-top:14px">Signal Contributions</div>
+            <div id="r-signals"></div>
+          </div>
+          <div class="result-section">
+            <div class="rs-title">Risk Waterfall</div>
+            <div id="r-waterfall"></div>
+            <div class="rs-title" style="margin-top:14px">Execution Timeline</div>
+            <div id="r-gantt"></div>
+          </div>
+          <div class="result-section">
+            <div class="rs-title">Counterfactual Analysis</div>
+            <div id="r-cf"></div>
+            <div class="rs-title" style="margin-top:14px">Investigation Story</div>
+            <div class="story" id="r-story"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom row: confusion matrix + log -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px">
+          <div class="sec-title" style="margin-bottom:10px">Confusion Matrix</div>
+          <div class="cm">
+            <div class="cm-cell tp"><div class="cm-big" id="cm-tp">0</div><div class="cm-lbl">True Positive</div></div>
+            <div class="cm-cell fp"><div class="cm-big" id="cm-fp">0</div><div class="cm-lbl">False Positive</div></div>
+            <div class="cm-cell fn"><div class="cm-big" id="cm-fn">0</div><div class="cm-lbl">False Negative</div></div>
+            <div class="cm-cell tn"><div class="cm-big" id="cm-tn">0</div><div class="cm-lbl">True Negative</div></div>
+          </div>
+          <div class="cm-stats">
+            <div class="cms"><div class="cms-val" id="cm-acc">—</div><div class="cms-lbl">Accuracy</div></div>
+            <div class="cms"><div class="cms-val" id="cm-prec">—</div><div class="cms-lbl">Precision</div></div>
+            <div class="cms"><div class="cms-val" id="cm-rec">—</div><div class="cms-lbl">Recall</div></div>
+            <div class="cms"><div class="cms-val" id="cm-f1">—</div><div class="cms-lbl">F1</div></div>
+          </div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px">
+          <div class="sec-title" style="margin-bottom:10px">Transaction Log</div>
+          <div class="log" id="txn-log"></div>
+        </div>
+      </div>
+
+    </div><!-- end pane-det -->
+
+
+    <!-- ─── SIMULATION LAB TAB ─── -->
+    <div id="pane-sim" style="display:none">
+
+      <!-- Row 1: Ground Truth Stats -->
+      <div class="sim-grid-3">
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x1F4CA; Ground Truth Store</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><div class="sim-stat-big" id="gt-total" style="color:var(--blue)">—</div><div class="sim-stat-lbl">Total Records</div></div>
+            <div><div class="sim-stat-big" id="gt-fraud" style="color:var(--red)">—</div><div class="sim-stat-lbl">Fraud Records</div></div>
+            <div><div class="sim-stat-big" id="gt-legit" style="color:var(--green)">—</div><div class="sim-stat-lbl">Legit Records</div></div>
+            <div><div class="sim-stat-big" id="gt-rate" style="color:var(--yellow)">—</div><div class="sim-stat-lbl">Fraud Rate</div></div>
+          </div>
+        </div>
+
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x1F30D; Economic Environment</div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:6px">Today's active macro events</div>
+          <div id="eco-events" style="font-size:10px;color:var(--muted)">Loading...</div>
+          <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">
+            <div>Volume mult: <span id="eco-vol" style="color:var(--cyan);font-weight:700">—</span></div>
+            <div>Fraud mult: <span id="eco-fraud" style="color:var(--red);font-weight:700">—</span></div>
+          </div>
+        </div>
+
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x1F9EA; Sim Activity Log</div>
+          <div class="sim-log" id="sim-log"><div class="sim-log-row">No simulation runs yet</div></div>
+        </div>
+      </div>
+
+      <!-- Row 2: Population Profile + Evaluation Metrics -->
+      <div class="sim-grid-2">
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x1F465; Population Profile <span id="pop-id" style="font-size:9px;color:var(--muted);font-weight:400"></span></div>
+          <div id="pop-persona-bars" style="font-size:10px;color:var(--muted)">Run "Generate Population" to see persona distribution</div>
+          <div style="margin-top:10px;font-size:9px;color:var(--muted)">Income percentiles:</div>
+          <div id="pop-income-bars" style="margin-top:4px"></div>
+          <div style="margin-top:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:9px;color:var(--muted)">
+            <div>Avg devices: <span id="pop-devices" style="color:var(--blue);font-weight:700">—</span></div>
+            <div>Multi-device: <span id="pop-multi" style="color:var(--blue);font-weight:700">—</span></div>
+            <div>Intl travelers: <span id="pop-intl" style="color:var(--blue);font-weight:700">—</span></div>
+          </div>
+        </div>
+
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x1F3AF; Evaluation Metrics</div>
+          <div class="band-table" style="margin-bottom:10px">
+            <div class="band-cell"><div class="band-lbl">Accuracy</div><div class="band-val" id="ev-acc" style="color:var(--green)">—</div></div>
+            <div class="band-cell"><div class="band-lbl">Precision</div><div class="band-val" id="ev-prec" style="color:var(--blue)">—</div></div>
+            <div class="band-cell"><div class="band-lbl">F1</div><div class="band-val" id="ev-f1" style="color:var(--purple)">—</div></div>
+          </div>
+          <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px">By Difficulty Band</div>
+          <div id="ev-by-diff" style="font-size:10px;color:var(--muted)">Load metrics to see breakdown</div>
+          <div style="margin-top:10px;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px">By Fraud Type</div>
+          <div id="ev-by-type" style="font-size:10px;color:var(--muted)"></div>
+        </div>
+      </div>
+
+      <!-- Row 3: Fraud Evolution Arc -->
+      <div class="sim-panel">
+        <div class="sim-panel-title">&#x1F9EC; Fraud Evolution Arc
+          <span id="evo-campaign-type" style="font-size:9px;color:var(--muted);font-weight:400"></span>
+        </div>
+        <div id="evo-display" style="color:var(--muted);font-size:11px">Run "Evolve Campaign" to see fraud adaptation progression</div>
+      </div>
+
+      <!-- Row 4: Campaign Performance + Fraud Type Performance -->
+      <div class="sim-grid-2">
+        <div class="sim-panel" style="overflow:hidden">
+          <div class="sim-panel-title">&#x1F4CB; Campaign Performance</div>
+          <div style="overflow-x:auto">
+            <table class="sim-table" id="camp-table">
+              <thead><tr>
+                <th>Campaign ID</th><th>Type</th><th>Txns</th>
+                <th>Fraud Rate</th><th>Difficulty</th><th>Gen</th>
+              </tr></thead>
+              <tbody id="camp-tbody"><tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px">No campaign data yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sim-panel" style="overflow:hidden">
+          <div class="sim-panel-title">&#x1F50E; Fraud Type Performance</div>
+          <div style="overflow-x:auto">
+            <table class="sim-table" id="type-table">
+              <thead><tr>
+                <th>Fraud Type</th><th>Count</th><th>Avg Difficulty</th><th>Est. Detection</th>
+              </tr></thead>
+              <tbody id="type-tbody"><tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px">No data yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 5: Ground Truth by Type + Label Leakage Report -->
+      <div class="sim-grid-2">
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x1F4CA; Ground Truth by Fraud Type</div>
+          <div id="gt-by-type" style="font-size:10px;color:var(--muted)">Load ground truth stats to see breakdown</div>
+        </div>
+
+        <div class="sim-panel">
+          <div class="sim-panel-title">&#x26A0; Label Leakage Report</div>
+          <div id="leakage-verdict" style="font-size:11px;color:var(--muted)">Run leakage check to see results</div>
+          <div id="leakage-features"></div>
+        </div>
+      </div>
+
+    </div><!-- end pane-sim -->
+
+  </div><!-- end main -->
+</div><!-- end layout -->
+
+<script>
+const API = 'http://127.0.0.1:8000';
+let activeScenario = 'account_takeover';
+const M = { total:0, fraud:0, latencies:[], tp:0, fp:0, tn:0, fn:0 };
+let currentTab = 'det';
+
+// ─── TAB SWITCHING ───────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('pane-det').style.display = tab==='det' ? 'flex' : 'none';
+  document.getElementById('pane-det').style.flexDirection = 'column';
+  document.getElementById('pane-det').style.gap = '14px';
+  document.getElementById('pane-sim').style.display = tab==='sim' ? 'flex' : 'none';
+  document.getElementById('pane-sim').style.flexDirection = 'column';
+  document.getElementById('pane-sim').style.gap = '14px';
+  document.getElementById('sb-det').style.display = tab==='det' ? 'flex' : 'none';
+  document.getElementById('sb-det').style.flexDirection = 'column';
+  document.getElementById('sb-det').style.gap = '14px';
+  document.getElementById('sb-sim').style.display = tab==='sim' ? 'flex' : 'none';
+  document.getElementById('sb-sim').style.flexDirection = 'column';
+  document.getElementById('sb-sim').style.gap = '14px';
+  document.getElementById('tab-det').className = 'tab-btn' + (tab==='det'?' active':'');
+  document.getElementById('tab-sim').className = 'tab-btn' + (tab==='sim'?' sim-active':'');
+  if(tab==='sim') refreshSimMetrics();
+}
+
+// ─── PIPELINE ────────────────────────────────────────────────────────────────
+const STAGES = [
+  {id:'gen',   label:'TX\nGen',        color:'#3b82f6'},
+  {id:'inj',   label:'Fraud\nInject',  color:'#ef4444'},
+  {id:'screen',label:'Fast\nScreen',   color:'#f59e0b'},
+  {id:'behav', label:'Behavior',       color:'#8b5cf6'},
+  {id:'seq',   label:'Sequence',       color:'#06b6d4'},
+  {id:'dev',   label:'Device\nRep',    color:'#10b981'},
+  {id:'mer',   label:'Merchant\nRep',  color:'#f97316'},
+  {id:'geo',   label:'Geo\nVelocity',  color:'#ec4899'},
+  {id:'delta', label:'Risk\nDelta',    color:'#a78bfa'},
+  {id:'router',label:'Router',         color:'#fbbf24'},
+  {id:'graph', label:'Graph\nIntel',   color:'#34d399'},
+  {id:'evid',  label:'Evidence\nBuild',color:'#60a5fa'},
+  {id:'cons',  label:'Consensus',      color:'#f472b6'},
+  {id:'expl',  label:'Explain',        color:'#a3e635'},
+  {id:'final', label:'Decision',       color:'#fb7185'},
+];
+
+function buildPipeline() {
+  const wrap = document.getElementById('pipe-nodes');
+  wrap.innerHTML = '';
+  STAGES.forEach((s,i) => {
+    const div = document.createElement('div');
+    div.className = 'pnode';
+    div.innerHTML = `
+      <div class="pnode-box" id="pn-${s.id}" style="border-top:2px solid ${s.color}44">
+        <div style="color:${s.color};margin-bottom:2px">&#x25CF;</div>
+        ${s.label.replace('\n','<br>')}
+        <div class="pnode-count" id="pc-${s.id}">0/0</div>
+      </div>
+      ${i<STAGES.length-1?`<div class="pnode-arrow">&#x203A;</div>`:''}
+    `;
+    wrap.appendChild(div);
+  });
+}
+buildPipeline();
+
+async function animatePipeline(result) {
+  const isFraud = result.final_decision !== 'APPROVED';
+  const deepInv = result.routed_to_deep_investigation;
+  const skippedAfter = deepInv ? 999 : 9;
+  STAGES.forEach((s,i) => {
+    const box = document.getElementById('pn-'+s.id);
+    box.className = 'pnode-box';
+    if(i > skippedAfter) box.classList.add('skipped');
+  });
+  document.getElementById('pipe-label').textContent = `Running: ${activeScenario.replace(/_/g,' ')}...`;
+  for(let i=0; i<STAGES.length; i++) {
+    if(i > skippedAfter) break;
+    const box = document.getElementById('pn-'+STAGES[i].id);
+    box.classList.add('active');
+    await sleep(60);
+    box.classList.remove('active');
+    box.classList.add(isFraud ? 'done-fraud' : 'done-legit');
+    const [p] = (document.getElementById('pc-'+STAGES[i].id).textContent||'0/0').split('/');
+    const newP = parseInt(p)+1;
+    document.getElementById('pc-'+STAGES[i].id).textContent = `${newP}/${isFraud?newP:0}`;
+  }
+  const label = isFraud ? `FRAUD DETECTED — ${result.final_decision}` : `APPROVED — Low Risk`;
+  document.getElementById('pipe-label').textContent = label;
+  document.getElementById('pipe-label').style.color = isFraud ? 'var(--red)' : 'var(--green)';
+}
+
+// ─── HEALTH ──────────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(API+'/health');
+    if(r.ok) { document.getElementById('hdot').className='dot ok'; document.getElementById('hstatus').textContent='API online'; }
+    else throw 0;
+  } catch { document.getElementById('hdot').className='dot err'; document.getElementById('hstatus').textContent='API offline'; }
+}
+checkHealth(); setInterval(checkHealth,15000);
+
+function selectScenario(btn, name) {
+  document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  activeScenario = name;
+}
+
+function riskColor(v) { return v>=70?'var(--red)':v>=40?'var(--yellow)':'var(--green)'; }
+
+// ─── DETECTION RESULT DISPLAY ─────────────────────────────────────────────────
+function showResult(result, label, isFraudExpected) {
+  const consensus = result.consensus||{};
+  const risk = Math.round(consensus.risk_score || result.pre_risk_score || 0);
+  const decision = result.final_decision || 'UNKNOWN';
+  const isFraudResult = decision !== 'APPROVED' && risk > 35;
+  M.total++; M.latencies.push(result.total_latency_ms||0);
+  if(isFraudExpected===true && isFraudResult)       M.tp++;
+  else if(isFraudExpected===false && !isFraudResult) M.tn++;
+  else if(isFraudExpected===true && !isFraudResult)  M.fn++;
+  else if(isFraudExpected===false && isFraudResult)  M.fp++;
+  if(isFraudResult) M.fraud++;
+  updateMetrics();
+  document.getElementById('r-risk').textContent = risk+'/100';
+  document.getElementById('r-risk').style.color = riskColor(risk);
+  const chip = document.getElementById('r-decision');
+  chip.textContent = decision.replace(/_/g,' ');
+  chip.className = 'decision-chip '+(decision||'UNKNOWN');
+  document.getElementById('r-bar').style.width = risk+'%';
+  document.getElementById('r-bar').style.background = riskColor(risk);
+  const conf=Math.round(consensus.confidence_score||0), agree=Math.round(consensus.agreement_score||0);
+  document.getElementById('r-meta').innerHTML = `<strong>${label}</strong><br>Confidence: ${conf}% &nbsp;|&nbsp; Agreement: ${agree}%<br>Deep investigation: ${result.routed_to_deep_investigation?'Yes':'No'}`;
+  document.getElementById('r-latency').textContent = `Total: ${Math.round(result.total_latency_ms||0)}ms`;
+  const agentRisks = consensus.agent_risks||[];
+  document.getElementById('r-agents').innerHTML = agentRisks.map(a => {
+    const sc=Math.round(a.risk_score);
+    return `<div class="agent-box"><div class="ab-name">${a.agent.charAt(0).toUpperCase()+a.agent.slice(1)}</div><div class="ab-score" style="color:${riskColor(sc)}">${sc}</div><div class="ab-finding">${(a.key_findings||[]).slice(0,2).join(', ')||'—'}</div></div>`;
+  }).join('');
+  const signals = agentRisks.map(a=>({name:a.agent,score:a.risk_score}));
+  document.getElementById('r-signals').innerHTML = signals.map(s=>{
+    const col=riskColor(s.score);
+    return `<div class="sig-row"><div class="sig-top"><span>${s.name}</span><span style="color:${col};font-weight:700">${Math.round(s.score)}</span></div><div class="sig-bar"><div class="sig-fill" style="width:${Math.min(100,s.score).toFixed(0)}%;background:${col}"></div></div></div>`;
+  }).join('');
+  const base=20, maxW=Math.max(risk,20,1);
+  const wfItems=[{l:'Base Score',v:base,add:false,c:'#3b82f6'},...agentRisks.map(a=>({l:a.agent,v:Math.round(a.risk_score*0.2),add:true,c:riskColor(a.risk_score)})),{l:'Final Score',v:risk,add:false,c:'#3b82f6'}];
+  document.getElementById('r-waterfall').innerHTML = wfItems.map(item=>{
+    const pct=(item.v/Math.max(...wfItems.map(i=>i.v),1)*100).toFixed(0);
+    return `<div class="wf-row"><div class="wf-label">${item.l}</div><div class="wf-track"><div class="wf-bar" style="width:${pct}%;background:${item.c}">${item.add?'+':''}${item.v}</div></div><div class="wf-val" style="color:${item.c}">${item.add?'+':''}${item.v}</div></div>`;
+  }).join('');
+  const lb=result.latency_breakdown||{};
+  const ganttItems=[
+    {l:'Fast Screening',ms:lb.fast_screening_ms||0,c:'#f59e0b'},
+    {l:'Pre-Agent',ms:lb.pre_agent_analysis_ms||0,c:'#8b5cf6'},
+    {l:'Evidence',ms:lb.evidence_build_ms||0,c:'#60a5fa'},
+    {l:'Agents (parallel)',ms:lb.parallel_agents_ms||0,c:'#10b981'},
+    {l:'Consensus',ms:lb.consensus_ms||0,c:'#f472b6'},
+    {l:'Explainability',ms:lb.explainability_ms||0,c:'#a3e635'},
+    {l:'Analyst',ms:lb.analyst_ms||0,c:'#fb7185'},
+  ].filter(i=>i.ms>0);
+  const maxMs=Math.max(...ganttItems.map(i=>i.ms),1);
+  document.getElementById('r-gantt').innerHTML = ganttItems.map(item=>{
+    const pct=(item.ms/maxMs*100).toFixed(0);
+    return `<div class="gantt-row"><div class="gl">${item.l}</div><div class="gt"><div class="gb" style="width:${pct}%;background:${item.c}">${item.ms.toFixed(1)}ms</div></div><div class="gv">${item.ms.toFixed(1)}ms</div></div>`;
+  }).join('');
+  const cf=result.counterfactual||{}, exp=result.explainability||{};
+  const cfItems=Object.entries(cf.counterfactuals||{}).slice(0,4);
+  document.getElementById('r-cf').innerHTML = cf.primary_contributor ? `<div class="cf-box"><div style="font-weight:700;margin-bottom:6px">Primary driver: ${cf.primary_contributor} (${cf.contribution_score}/100)</div>${cfItems.map(([k,v])=>`<div>Without <em>${k}</em> → risk <strong>${Math.round(v)}/100</strong></div>`).join('')}<div style="margin-top:6px;color:var(--muted)">${exp.human_explanation||''}</div></div>` : `<div style="color:var(--muted);font-size:11px">No counterfactual (low-risk auto-approval)</div>`;
+  document.getElementById('r-story').textContent = (result.story||exp.human_explanation||'').replace(/[^\x00-\x7F]/g,'').trim();
+  updateCM();
+  addLog(decision, isFraudResult, risk, label);
+  document.getElementById('result-card').classList.add('visible');
+}
+
+function updateMetrics() {
+  document.getElementById('m-total').textContent = M.total;
+  document.getElementById('m-fraud').textContent = M.fraud;
+  document.getElementById('m-rate').textContent = M.total ? Math.round(M.fraud/M.total*100)+'%' : '—';
+  if(M.latencies.length) {
+    const avg=Math.round(M.latencies.reduce((a,b)=>a+b,0)/M.latencies.length);
+    const sorted=[...M.latencies].sort((a,b)=>a-b);
+    const p95=Math.round(sorted[Math.floor(sorted.length*.95)]||sorted[sorted.length-1]);
+    document.getElementById('m-avg').textContent=avg+'ms';
+    document.getElementById('m-p95').textContent=p95+'ms';
+  }
+  const total=M.tp+M.fp+M.tn+M.fn;
+  document.getElementById('m-acc').textContent=total?Math.round((M.tp+M.tn)/total*100)+'%':'—';
+}
+
+function updateCM() {
+  ['tp','fp','fn','tn'].forEach(k=>document.getElementById('cm-'+k).textContent=M[k]);
+  const tot=M.tp+M.fp+M.tn+M.fn; if(!tot) return;
+  document.getElementById('cm-acc').textContent=Math.round((M.tp+M.tn)/tot*100)+'%';
+  document.getElementById('cm-prec').textContent=M.tp+M.fp?Math.round(M.tp/(M.tp+M.fp)*100)+'%':'—';
+  document.getElementById('cm-rec').textContent=M.tp+M.fn?Math.round(M.tp/(M.tp+M.fn)*100)+'%':'—';
+  const f1d=2*M.tp+M.fp+M.fn;
+  document.getElementById('cm-f1').textContent=f1d?Math.round(2*M.tp/f1d*100)+'%':'—';
+}
+
+function addLog(decision, isFraud, risk, label) {
+  const log=document.getElementById('txn-log');
+  const cls=isFraud?'fr':risk>35?'iv':'lg';
+  const ts=new Date().toLocaleTimeString('en',{hour12:false});
+  const row=document.createElement('div');
+  row.className='log-row '+cls;
+  row.innerHTML=`<span class="log-ts">${ts}</span><span class="log-dec">${decision}</span><span class="log-risk">${risk.toFixed(0)}/100</span><span style="color:var(--muted);font-size:9px">${label}</span>`;
+  log.insertBefore(row,log.firstChild);
+  if(log.children.length>40) log.lastChild.remove();
+}
+
+// ─── DETECTION ACTIONS ────────────────────────────────────────────────────────
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function setLoading(yes) {
+  document.getElementById('spinner').style.display=yes?'block':'none';
+  ['run-btn','custom-btn','batch-btn'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.disabled=yes;
+  });
+}
+
+async function runScenario() {
+  setLoading(true);
+  try {
+    const resp=await fetch(API+'/demo/scenario/'+activeScenario,{method:'POST'});
+    const data=await resp.json();
+    const result=data.result||data;
+    const isFraud=activeScenario!=='legitimate_travel';
+    await animatePipeline(result);
+    showResult(result,activeScenario.replace(/_/g,' '),isFraud);
+  } catch(e){alert('Error: '+e.message);}
+  setLoading(false);
+}
+
+async function runCustom() {
+  setLoading(true);
+  const uid=document.getElementById('c-user').value;
+  const body={user_id:uid,transaction:{
+    transaction_id:'custom_'+Date.now(),user_id:uid,
+    amount:parseFloat(document.getElementById('c-amount').value)||1000,
+    currency:'INR',merchant_id:'merchant_custom',merchant_name:'Custom Merchant',
+    merchant_category:document.getElementById('c-cat').value,
+    device_id:document.getElementById('c-device').value,device_type:'mobile',
+    ip_address:'103.21.244.0',latitude:19.076,longitude:72.878,
+    location_city:document.getElementById('c-city').value,
+    location_country:document.getElementById('c-country').value,
+    timestamp:new Date().toISOString(),transaction_type:'purchase',
+    channel:'online',is_international:document.getElementById('c-intl').value==='true',card_present:false
+  }};
+  try {
+    const resp=await fetch(API+'/detect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await resp.json();
+    await animatePipeline(data.result||data);
+    showResult(data.result||data,'custom transaction',null);
+  } catch(e){alert('Error: '+e.message);}
+  setLoading(false);
+}
+
+async function runBatch() {
+  const count=Math.min(parseInt(document.getElementById('b-count').value)||5,20);
+  const fraudPct=parseInt(document.getElementById('b-fraud').value)/100;
+  document.getElementById('batch-btn').disabled=true;
+  const fraudScenarios=['account_takeover','card_testing','impossible_travel','velocity_fraud'];
+  for(let i=0;i<count;i++){
+    const isFraud=Math.random()<fraudPct;
+    const s=isFraud?fraudScenarios[Math.floor(Math.random()*fraudScenarios.length)]:'legitimate_travel';
+    try {
+      const resp=await fetch(API+'/demo/scenario/'+s,{method:'POST'});
+      const data=await resp.json();
+      await animatePipeline(data.result||data);
+      showResult(data.result||data,s.replace(/_/g,' '),isFraud);
+    } catch(e){console.error(e);}
+    await sleep(300);
+  }
+  document.getElementById('batch-btn').disabled=false;
+}
+
+async function runDemo() {
+  const demo=[{s:'account_takeover',f:true},{s:'card_testing',f:true},{s:'legitimate_travel',f:false},{s:'impossible_travel',f:true},{s:'velocity_fraud',f:true},{s:'legitimate_travel',f:false},{s:'account_takeover',f:true},{s:'legitimate_travel',f:false}];
+  document.querySelectorAll('.run-btn,.judge-btn').forEach(b=>b.disabled=true);
+  for(const {s,f} of demo){
+    document.querySelectorAll('.sbtn').forEach(b=>{if(b.onclick?.toString().includes(`'${s}'`)){b.classList.add('active');activeScenario=s;}else b.classList.remove('active');});
+    try {
+      const resp=await fetch(API+'/demo/scenario/'+s,{method:'POST'});
+      const data=await resp.json();
+      await animatePipeline(data.result||data);
+      showResult(data.result||data,s.replace(/_/g,' '),f);
+    } catch(e){console.error(e);}
+    await sleep(700);
+  }
+  document.querySelectorAll('.run-btn,.judge-btn').forEach(b=>b.disabled=false);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ─── SIMULATION LAB ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function simLog(msg) {
+  const log=document.getElementById('sim-log');
+  const ts=new Date().toLocaleTimeString('en',{hour12:false});
+  const row=document.createElement('div');
+  row.className='sim-log-row';
+  row.textContent=`[${ts}] ${msg}`;
+  log.insertBefore(row,log.firstChild);
+  if(log.children.length>20) log.lastChild.remove();
+}
+
+function diffChip(d) {
+  const cls=d<33?'diff-easy':d<66?'diff-med':'diff-hard';
+  const label=d<33?'Easy':d<66?'Medium':'Hard';
+  return `<span class="diff-chip ${cls}">${label} (${d})</span>`;
+}
+
+function pct(v){ return v!==null&&v!==undefined ? Math.round(v*100)+'%' : '—'; }
+
+// ─── POPULATION ──────────────────────────────────────────────────────────────
+const PERSONA_COLORS = {
+  salaried_employee:'#3b82f6',student:'#8b5cf6',business_owner:'#f59e0b',
+  gig_worker:'#10b981',frequent_traveler:'#06b6d4',senior_citizen:'#6b7280',
+  crypto_trader:'#ef4444',high_net_worth:'#f97316'
+};
+
+async function simPopulation() {
+  const count=parseInt(document.getElementById('sim-pop-count').value)||100;
+  const domestic=document.getElementById('sim-pop-domestic').checked;
+  simLog(`Generating population of ${count} users...`);
+  try {
+    const resp=await fetch(API+'/simulate/population',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({total_users:count,domestic_only:domestic})
+    });
+    const d=await resp.json();
+    simLog(`Population ${d.population_id} created — ${d.total_users} users`);
+    renderPopulation(d);
+  } catch(e){ simLog('ERROR: '+e.message); }
+}
+
+function renderPopulation(d) {
+  document.getElementById('pop-id').textContent = '— '+d.population_id;
+  const dist=d.persona_distribution||{};
+  const total=d.total_users||1;
+  const sorted=Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+  const maxCount=sorted[0]?sorted[0][1]:1;
+  document.getElementById('pop-persona-bars').innerHTML = sorted.map(([type,count])=>{
+    const col=PERSONA_COLORS[type]||'#6b7280';
+    const pctVal=Math.round(count/total*100);
+    const w=Math.round(count/maxCount*100);
+    return `<div class="pb-row">
+      <div class="pb-label" style="color:${col}">${type.replace(/_/g,' ')}</div>
+      <div class="pb-track"><div class="pb-fill" style="width:${w}%;background:${col}">${pctVal}%</div></div>
+      <div class="pb-val" style="color:${col}">${count}</div>
+    </div>`;
+  }).join('');
+
+  const income=d.income||{};
+  const maxIncome=income.p95||1;
+  document.getElementById('pop-income-bars').innerHTML = [
+    {label:'P25',val:income.p25},{label:'Med',val:income.median},
+    {label:'P75',val:income.p75},{label:'P95',val:income.p95}
+  ].map(({label,val})=>`<div class="inc-row">
+    <div class="inc-label">${label}</div>
+    <div class="inc-bar"><div class="inc-fill" style="width:${Math.round((val||0)/maxIncome*100)}%"></div></div>
+    <div class="inc-val">&#x20B9;${((val||0)/1000).toFixed(0)}k</div>
+  </div>`).join('');
+
+  document.getElementById('pop-devices').textContent = d.avg_devices_per_user||'—';
+  document.getElementById('pop-multi').textContent = pct(d.multi_device_pct);
+  document.getElementById('pop-intl').textContent = pct(d.international_user_pct);
+}
+
+// ─── CAMPAIGN ────────────────────────────────────────────────────────────────
+async function simCampaign() {
+  const ctype=document.getElementById('sim-camp-type').value||null;
+  const adv=document.getElementById('sim-camp-adv').checked;
+  const diff=parseInt(document.getElementById('sim-camp-diff').value)||60;
+  simLog(`Generating ${ctype||'random'} campaign (adversarial=${adv}, target=${diff})...`);
+  try {
+    const resp=await fetch(API+'/simulate/campaign',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({campaign_type:ctype,apply_adversarial:adv,difficulty_target:diff})
+    });
+    const d=await resp.json();
+    simLog(`Campaign ${d.campaign_id} created — ${d.transaction_count} txns, difficulty=${d.attack_difficulty||'—'}`);
+    await refreshCampaignTable();
+    await refreshGroundTruth();
+  } catch(e){ simLog('ERROR: '+e.message); }
+}
+
+// ─── RING ────────────────────────────────────────────────────────────────────
+async function simRing() {
+  const rtype=document.getElementById('sim-ring-type').value||null;
+  const adv=document.getElementById('sim-ring-adv').checked;
+  simLog(`Generating ${rtype||'random'} fraud ring...`);
+  try {
+    const resp=await fetch(API+'/simulate/ring',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ring_type:rtype,apply_adversarial:adv})
+    });
+    const d=await resp.json();
+    simLog(`Ring ${d.ring_id} created — ${d.member_count} members, ${d.transaction_count} txns`);
+    await refreshGroundTruth();
+  } catch(e){ simLog('ERROR: '+e.message); }
+}
+
+// ─── EVOLUTION ───────────────────────────────────────────────────────────────
+async function simEvolve() {
+  const ctype=document.getElementById('sim-evo-type').value||null;
+  const gens=parseInt(document.getElementById('sim-evo-gens').value)||4;
+  simLog(`Evolving ${ctype||'random'} campaign for ${gens} generations...`);
+  try {
+    const resp=await fetch(API+'/simulate/evolve',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({campaign_type:ctype,num_generations:gens,store_ground_truth:true})
+    });
+    const d=await resp.json();
+    simLog(`Evolution complete — ${d.num_generations} generations, difficulty: ${JSON.stringify(d.difficulty_progression)}`);
+    renderEvolution(d);
+    await refreshGroundTruth();
+    await refreshCampaignTable();
+  } catch(e){ simLog('ERROR: '+e.message); }
+}
+
+function renderEvolution(d) {
+  const diffs=d.difficulty_progression||[];
+  const gens=d.generations||[];
+  document.getElementById('evo-campaign-type').textContent = '— '+d.campaign_type;
+  const genColors=['evo-g1','evo-g2','evo-g3','evo-g4'];
+  const genNames=['Gen 1\nBasic','Gen 2\nAdapted','Gen 3\nSophisticated','Gen 4\nAPT-Level'];
+  const rows=gens.map((g,i)=>{
+    const cls=genColors[i]||'evo-g1';
+    const mutations=(g.mutations_used||[]).slice(0,2).join(', ')||'none';
+    return `<div class="evo-gen ${cls}">
+      <div>${genNames[i]||('Gen '+(i+1))}</div>
+      <div style="font-size:16px;font-weight:800;margin:4px 0">${diffs[i]!==undefined?diffs[i].toFixed(0):'—'}/100</div>
+      <div style="font-size:8px;color:var(--muted)">${mutations}</div>
+    </div>`;
+  });
+  const html=rows.length>0?`<div class="evo-row">${rows.join('<div class="evo-arrow">&#x27A1;</div>')}</div>`:'No generations';
+  document.getElementById('evo-display').innerHTML = html;
+}
+
+// ─── LEAKAGE ─────────────────────────────────────────────────────────────────
+async function simLeakage() {
+  simLog('Running label leakage check on ground truth store...');
+  try {
+    const resp=await fetch(API+'/simulate/leakage-check/from-ground-truth');
+    if(!resp.ok){simLog('Not enough data in ground truth store');return;}
+    const d=await resp.json();
+    renderLeakage(d);
+    simLog(`Leakage check: ${d.dataset_verdict} — ${d.leaking_features.length} leaking features`);
+  } catch(e){simLog('ERROR: '+e.message);}
+}
+
+function renderLeakage(d) {
+  const verdictClass={'PASS':'vb-pass','WARNING':'vb-warn','REJECT':'vb-reject'}[d.dataset_verdict]||'vb-warn';
+  const verdictIcon={'PASS':'&#x2705;','WARNING':'&#x26A0;','REJECT':'&#x274C;'}[d.dataset_verdict]||'';
+  document.getElementById('leakage-verdict').innerHTML = `
+    <div class="verdict-banner ${verdictClass}">${verdictIcon} ${d.dataset_verdict} — ${d.total_records} records (${pct(d.overall_fraud_rate)} fraud)</div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:8px">${d.quality_impact}</div>
+  `;
+  const features=(d.feature_analysis||[]).slice(0,7);
+  document.getElementById('leakage-features').innerHTML = features.map(f=>{
+    const vcls={ok:'lv-ok',warning:'lv-warn',critical:'lv-crit'}[f.severity]||'lv-ok';
+    const wv=f.top_values&&f.top_values[0]?`${f.top_values[0].value} (${(f.top_values[0].fraud_rate*100).toFixed(0)}% fraud, ${f.top_values[0].lift}x lift)`:'—';
+    return `<div class="leak-row">
+      <div class="leak-feat">${f.feature}</div>
+      <div class="leak-verdict ${vcls}">${f.severity.toUpperCase()}</div>
+      <div class="leak-detail">${wv}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── REFRESH ALL METRICS ─────────────────────────────────────────────────────
+async function refreshSimMetrics() {
+  await Promise.all([
+    refreshGroundTruth(),
+    refreshEconomicEnv(),
+    refreshEvalMetrics(),
+    refreshCampaignTable(),
+    refreshFraudTypeTable(),
+  ]);
+}
+
+async function refreshGroundTruth() {
+  try {
+    const resp=await fetch(API+'/ground-truth/stats');
+    const d=await resp.json();
+    document.getElementById('gt-total').textContent=d.total||0;
+    document.getElementById('gt-fraud').textContent=d.fraud||0;
+    document.getElementById('gt-legit').textContent=d.legit||0;
+    document.getElementById('gt-rate').textContent=d.fraud_rate!==undefined?Math.round(d.fraud_rate*100)+'%':'—';
+    const byType=d.by_fraud_type||{};
+    const byTypeEntries=Object.entries(byType).sort((a,b)=>b[1]-a[1]);
+    document.getElementById('gt-by-type').innerHTML = byTypeEntries.length>0
+      ? byTypeEntries.map(([type,count])=>`<div class="pb-row">
+          <div class="pb-label">${type.replace(/_/g,' ')}</div>
+          <div class="pb-track"><div class="pb-fill" style="width:${Math.min(100,Math.round(count/(byTypeEntries[0][1]||1)*100))}%;background:var(--red)">${count}</div></div>
+          <div class="pb-val" style="color:var(--red)">${count}</div>
+        </div>`).join('')
+      : '<div style="color:var(--muted);font-size:10px">No fraud types recorded yet</div>';
+  } catch(e){}
+}
+
+async function refreshEconomicEnv() {
+  try {
+    const resp=await fetch(API+'/economic/day-profile?country=India');
+    const d=await resp.json();
+    const events=d.active_events||[];
+    document.getElementById('eco-events').innerHTML = events.length>0
+      ? events.map(e=>`<span class="event-badge high">${e}</span>`).join('')
+      : '<span style="color:var(--muted)">No active macro events today</span>';
+    document.getElementById('eco-vol').textContent = d.volume_multiplier!==undefined?d.volume_multiplier+'x':'—';
+    document.getElementById('eco-fraud').textContent = d.fraud_multiplier!==undefined?d.fraud_multiplier+'x':'—';
+  } catch(e){ document.getElementById('eco-events').textContent='Could not load'; }
+}
+
+async function refreshEvalMetrics() {
+  try {
+    const resp=await fetch(API+'/metrics/evaluation');
+    const d=await resp.json();
+    const overall=(d.evaluation||{}).overall||{};
+    document.getElementById('ev-acc').textContent=overall.accuracy!==undefined?Math.round(overall.accuracy*100)+'%':'—';
+    document.getElementById('ev-prec').textContent=overall.precision!==undefined?Math.round(overall.precision*100)+'%':'—';
+    document.getElementById('ev-f1').textContent=overall.f1!==undefined?Math.round(overall.f1*100)+'%':'—';
+    const byDiff=(d.evaluation||{}).by_difficulty||{};
+    document.getElementById('ev-by-diff').innerHTML = Object.entries(byDiff).map(([band,m])=>{
+      const col=band==='easy'?'var(--green)':band==='medium'?'var(--yellow)':'var(--red)';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:10px">
+        <span style="width:50px;color:${col};font-weight:700">${band.toUpperCase()}</span>
+        <span>F1: <strong>${m.f1!==undefined?Math.round(m.f1*100)+'%':'—'}</strong></span>
+        <span style="color:var(--muted)">TP=${m.tp||0} FP=${m.fp||0} FN=${m.fn||0}</span>
+      </div>`;
+    }).join('')||'<span style="color:var(--muted)">No difficulty band data</span>';
+    const byType=(d.evaluation||{}).by_fraud_type||{};
+    document.getElementById('ev-by-type').innerHTML = Object.entries(byType).slice(0,5).map(([ft,m])=>`
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+        <span style="color:var(--muted)">${ft.replace(/_/g,' ')}</span>
+        <span>F1 <strong>${m.f1!==undefined?Math.round(m.f1*100)+'%':'—'}</strong></span>
+      </div>`).join('')||'';
+  } catch(e){}
+}
+
+async function refreshCampaignTable() {
+  try {
+    const resp=await fetch(API+'/metrics/campaign-performance');
+    const d=await resp.json();
+    const camps=(d.campaigns||[]).slice(0,10);
+    document.getElementById('camp-tbody').innerHTML = camps.length>0
+      ? camps.map(c=>`<tr>
+          <td style="font-family:monospace;font-size:9px;color:var(--muted)">${c.campaign_id}</td>
+          <td>${(c.fraud_types||['?'])[0]||'—'}</td>
+          <td>${c.total||0}</td>
+          <td style="color:${c.fraud_rate>0.5?'var(--red)':'var(--green)'}">${Math.round((c.fraud_rate||0)*100)}%</td>
+          <td>${diffChip(Math.round(c.avg_difficulty||0))}</td>
+          <td style="color:var(--purple)">${c.generation||1}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px">No campaign data. Run a campaign simulation first.</td></tr>';
+  } catch(e){}
+}
+
+async function refreshFraudTypeTable() {
+  try {
+    const resp=await fetch(API+'/metrics/fraud-type-performance');
+    const d=await resp.json();
+    const types=(d.fraud_types||[]).slice(0,8);
+    document.getElementById('type-tbody').innerHTML = types.length>0
+      ? types.map(t=>{
+          const detPct=Math.round((t.estimated_detection_rate||0)*100);
+          const detColor=detPct>70?'var(--green)':detPct>40?'var(--yellow)':'var(--red)';
+          return `<tr>
+            <td>${t.fraud_type.replace(/_/g,' ')}</td>
+            <td style="color:var(--red)">${t.count}</td>
+            <td>${diffChip(Math.round(t.avg_difficulty||0))}</td>
+            <td style="color:${detColor};font-weight:700">${detPct}%</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px">No fraud type data yet</td></tr>';
+  } catch(e){}
+}
+</script>
+</body>
+</html>

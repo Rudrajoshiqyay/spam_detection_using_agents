@@ -1,0 +1,95 @@
+{
+  "account_takeover": {
+    "name": "Account Takeover Kill Chain",
+    "stages": [
+      {
+        "stage": "Reconnaissance",
+        "index": 0,
+        "events": ["credential_stuffing", "phishing_attempt", "social_engineering"],
+        "signals": ["failed_login_attempts", "unusual_login_location"]
+      },
+      {
+        "stage": "Credential Access",
+        "index": 1,
+        "events": ["successful_login_new_device", "successful_login_new_location"],
+        "signals": ["new_device_login", "new_ip_login", "login_time_anomaly"]
+      },
+      {
+        "stage": "Device Change",
+        "index": 2,
+        "events": ["device_registration", "trusted_device_removal"],
+        "signals": ["new_device_added", "device_fingerprint_change"]
+      },
+      {
+        "stage": "Account Modification",
+        "index": 3,
+        "events": ["password_reset", "email_change", "phone_change"],
+        "signals": ["contact_info_changed", "security_settings_changed"]
+      },
+      {
+        "stage": "Exfiltration",
+        "index": 4,
+        "events": ["large_transfer", "international_transfer", "multiple_rapid_transfers"],
+        "signals": ["high_amount", "new_beneficiary", "international", "velocity_spike"]
+      }
+    ]
+  },
+  "mule_network": {
+    "name": "Mule Network Kill Chain",
+    "stages": [
+      {
+        "stage": "Account Creation",
+        "index": 0,
+        "events": ["new_account_opened", "identity_document_submitted"],
+        "signals": ["account_age_very_new", "kyc_minimal"]
+      },
+      {
+        "stage": "Money Collection",
+        "index": 1,
+        "events": ["incoming_transfers_received", "cash_deposits"],
+        "signals": ["incoming_transfer_pattern", "multiple_senders"]
+      },
+      {
+        "stage": "Layering",
+        "index": 2,
+        "events": ["internal_transfers", "crypto_purchase", "purchase_vouchers"],
+        "signals": ["rapid_internal_transfers", "conversion_to_untraceable"]
+      },
+      {
+        "stage": "Distribution",
+        "index": 3,
+        "events": ["outgoing_transfers_to_mules", "cash_withdrawal"],
+        "signals": ["outgoing_transfer_burst", "multiple_beneficiaries", "rapid_account_drain"]
+      }
+    ]
+  },
+  "fraud_ring": {
+    "name": "Fraud Ring Kill Chain",
+    "stages": [
+      {
+        "stage": "Network Setup",
+        "index": 0,
+        "events": ["multiple_account_creation", "shared_device_registration"],
+        "signals": ["multiple_accounts_same_device", "batch_account_creation"]
+      },
+      {
+        "stage": "Resource Sharing",
+        "index": 1,
+        "events": ["device_sharing", "ip_sharing", "merchant_targeting"],
+        "signals": ["shared_device_across_accounts", "shared_ip_across_accounts"]
+      },
+      {
+        "stage": "Coordinated Attack",
+        "index": 2,
+        "events": ["simultaneous_transactions", "same_merchant_targeting"],
+        "signals": ["coordinated_transaction_timing", "same_merchant_concentration"]
+      },
+      {
+        "stage": "Extraction",
+        "index": 3,
+        "events": ["funds_aggregation", "rapid_withdrawal"],
+        "signals": ["fund_collection_central_account", "rapid_dispersal"]
+      }
+    ]
+  }
+}

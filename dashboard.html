@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FraudGuard AI — Testing & Observability Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--panel:#111827;--border:#1f2937;--text:#e2e8f0;--muted:#6b7280;
+  --green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;--orange:#f97316;
+  --card:#1a2035;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{background:var(--panel);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;z-index:10}
+header h1{font-size:15px;font-weight:700;letter-spacing:.02em}
+.hbadge{font-size:10px;padding:2px 8px;border-radius:10px;background:#1e3a5f;color:#60a5fa;font-weight:600}
+.hdot{width:8px;height:8px;border-radius:50%;background:#374151;margin-left:auto}
+.hdot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.hdot.err{background:var(--red)}
+#hstatus{font-size:11px;color:var(--muted)}
+.hbtns{display:flex;gap:6px;margin-left:8px}
+.hbtn{padding:5px 12px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:11px;cursor:pointer;font-weight:600}
+.hbtn:hover{background:var(--border)}
+.hbtn.judge{background:linear-gradient(135deg,#7c3aed,#3b82f6);border-color:transparent;color:#fff}
+.hbtn.judge:hover{opacity:.9}
+
+.layout{display:grid;grid-template-columns:220px 1fr 300px;flex:1;overflow:hidden;gap:0}
+
+/* LEFT PANEL */
+.left{background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.lpanel-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.sbtn{padding:7px 6px;border-radius:5px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:10px;font-weight:600;cursor:pointer;text-align:center;transition:all .15s}
+.sbtn:hover,.sbtn.active{border-color:var(--blue);background:#1e3a5f;color:#93c5fd}
+.sbtn.active{border-color:var(--purple);background:#2e1065;color:#c4b5fd}
+.ctrl-label{font-size:10px;color:var(--muted);margin-bottom:3px}
+.ctrl-val{float:right;font-size:10px;color:var(--text);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--blue);height:4px;cursor:pointer}
+input[type=number],select{width:100%;padding:5px 8px;background:#0a0e1a;border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11px}
+.action-btns{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.abtn{padding:8px;border-radius:5px;border:none;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+.abtn:disabled{opacity:.35;cursor:not-allowed}
+.abtn.generate{background:#065f46;color:#6ee7b7}
+.abtn.inject{background:#7f1d1d;color:#fca5a5}
+.abtn.run{background:#1e40af;color:#93c5fd}
+.abtn.reset{background:#374151;color:#d1d5db}
+.abtn.full{grid-column:1/-1;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;padding:10px}
+.abtn:hover:not(:disabled){filter:brightness(1.15)}
+
+/* CENTER PANEL */
+.center{overflow:hidden;position:relative;display:flex;flex-direction:column}
+.center-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0}
+.ctab{padding:8px 14px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none}
+.ctab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.center-body{flex:1;overflow:hidden;position:relative}
+.cpane{position:absolute;inset:0;overflow:auto;display:none}
+.cpane.active{display:block}
+
+/* Pipeline canvas */
+#pipeline-canvas{width:100%;height:100%;display:block}
+
+/* Agent grid */
+.agent-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px}
+.agent-card{background:var(--card);border:1px solid var(--border);border-radius:7px;padding:10px;transition:border-color .2s}
+.agent-card.running{border-color:var(--yellow);box-shadow:0 0 8px rgba(245,158,11,.3)}
+.agent-card.done{border-color:var(--green)}
+.ag-name{font-size:11px;font-weight:700;margin-bottom:6px}
+.ag-status{font-size:10px;padding:2px 6px;border-radius:10px;display:inline-block;margin-bottom:6px}
+.ag-status.waiting{background:#1f2937;color:var(--muted)}
+.ag-status.running{background:#451a03;color:var(--yellow)}
+.ag-status.done{background:#064e3b;color:var(--green)}
+.ag-row{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px}
+.ag-row span:last-child{color:var(--text);font-weight:600}
+.ag-output{font-size:10px;color:var(--muted);margin-top:6px;padding:5px;background:var(--bg);border-radius:4px;min-height:24px;line-height:1.4}
+
+/* Gantt */
+.gantt-wrap{padding:12px}
+.gantt-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.gantt-label{font-size:10px;color:var(--muted);width:120px;flex-shrink:0;text-align:right}
+.gantt-track{flex:1;background:#1f2937;border-radius:3px;height:18px;position:relative;overflow:hidden}
+.gantt-bar{height:100%;border-radius:3px;position:absolute;top:0;display:flex;align-items:center;padding-left:4px;font-size:9px;font-weight:700;color:#fff;transition:width .3s}
+.gantt-ms{font-size:10px;color:var(--muted);width:40px;flex-shrink:0}
+
+/* RIGHT PANEL */
+.right{background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;gap:0}
+.right-section{border-bottom:1px solid var(--border);padding:10px 12px}
+.rsec-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.metric{background:var(--card);border-radius:6px;padding:8px;border:1px solid var(--border)}
+.metric-val{font-size:20px;font-weight:800;line-height:1}
+.metric-lbl{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* Signal bars */
+.sig-row{margin-bottom:7px}
+.sig-header{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.sig-name{color:var(--text);font-weight:600}
+.sig-score{font-weight:700}
+.sig-track{background:#1f2937;border-radius:3px;height:8px;overflow:hidden}
+.sig-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* Waterfall */
+.wfall{padding:0}
+.wf-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.wf-label{font-size:10px;color:var(--muted);width:110px;flex-shrink:0}
+.wf-bar-wrap{flex:1;position:relative;height:18px}
+.wf-bar{height:100%;border-radius:3px;display:flex;align-items:center;padding-left:5px;font-size:9px;font-weight:700;color:#fff}
+.wf-val{font-size:10px;font-weight:700;width:32px;flex-shrink:0;text-align:right}
+
+/* Confusion matrix */
+.cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px}
+.cm-cell{border-radius:5px;padding:8px;text-align:center}
+.cm-cell.tp{background:#064e3b}
+.cm-cell.fp{background:#7f1d1d}
+.cm-cell.fn{background:#451a03}
+.cm-cell.tn{background:#1e3a5f}
+.cm-val{font-size:18px;font-weight:800}
+.cm-lbl{font-size:9px;color:rgba(255,255,255,.6);margin-top:2px}
+.cm-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.cm-m{text-align:center;background:var(--card);border-radius:4px;padding:5px}
+.cm-m-val{font-size:13px;font-weight:700;color:var(--blue)}
+.cm-m-lbl{font-size:9px;color:var(--muted)}
+
+/* Decision explainer */
+.explainer{padding:10px;font-size:11px}
+.exp-txn{background:var(--card);border-radius:6px;padding:10px;margin-bottom:8px;border:1px solid var(--border)}
+.exp-signals{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.exp-sig{padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.exp-sig.pos{background:#7f1d1d;color:#fca5a5}
+.exp-sig.neg{background:#064e3b;color:#6ee7b7}
+.exp-cf{background:#1e1b4b;border:1px solid #3730a3;border-radius:6px;padding:8px;margin-top:6px;font-size:10px;color:#a5b4fc}
+
+/* Graph view */
+#graph-canvas{width:100%;height:100%;display:block}
+
+/* Stream log */
+.log-wrap{padding:8px;height:100%;overflow-y:auto}
+.log-entry{font-size:10px;padding:3px 6px;border-radius:3px;margin-bottom:2px;border-left:2px solid transparent;display:flex;gap:8px}
+.log-entry.fraud{border-left-color:var(--red);background:#1c0a0a}
+.log-entry.legit{border-left-color:var(--green);background:#0a1a0f}
+.log-entry.invest{border-left-color:var(--yellow);background:#1a150a}
+.log-ts{color:var(--muted);flex-shrink:0}
+.log-dec{font-weight:700;flex-shrink:0;width:100px}
+
+/* Scrollbars */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:18px">🛡️</div>
+  <h1>FraudGuard AI</h1>
+  <span class="hbadge">Testing & Observability Dashboard</span>
+  <span id="hstatus" style="margin-left:8px">Connecting...</span>
+  <div class="hdot" id="hdot"></div>
+  <div class="hbtns">
+    <button class="hbtn" onclick="pauseResume()" id="pause-btn">⏸ Pause</button>
+    <button class="hbtn" onclick="stepThrough()" id="step-btn">⏭ Step</button>
+    <button class="hbtn" onclick="exportResults()">⬇ Export</button>
+    <button class="hbtn" onclick="resetMetrics()">↺ Reset</button>
+    <button class="hbtn judge" onclick="runFullDemo()">▶ Run Full Demo</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT PANEL -->
+  <div class="left">
+    <div>
+      <div class="lpanel-title">Scenario</div>
+      <div class="scenario-grid">
+        <button class="sbtn active" onclick="setScenario(this,'account_takeover')">Account<br>Takeover</button>
+        <button class="sbtn" onclick="setScenario(this,'card_testing')">Card<br>Testing</button>
+        <button class="sbtn" onclick="setScenario(this,'impossible_travel')">Impossible<br>Travel</button>
+        <button class="sbtn" onclick="setScenario(this,'velocity_fraud')">Velocity<br>Attack</button>
+        <button class="sbtn" onclick="setScenario(this,'legitimate_travel')">Legit<br>Travel ✓</button>
+        <button class="sbtn" onclick="setScenario(this,'mixed')">Mixed<br>Batch</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="lpanel-title">Parameters</div>
+      <div class="ctrl-label">Transactions <span class="ctrl-val" id="txn-val">20</span></div>
+      <input type="range" id="txn-count" min="1" max="100" value="20" oninput="document.getElementById('txn-val').textContent=this.value">
+      <div class="ctrl-label" style="margin-top:8px">Fraud % <span class="ctrl-val" id="fraud-val">20%</span></div>
+      <input type="range" id="fraud-pct" min="0" max="100" value="20" oninput="document.getElementById('fraud-val').textContent=this.value+'%'">
+      <div class="ctrl-label" style="margin-top:8px">Speed (ms/txn) <span class="ctrl-val" id="speed-val">600</span></div>
+      <input type="range" id="speed" min="100" max="2000" value="600" step="100" oninput="document.getElementById('speed-val').textContent=this.value">
+    </div>
+
+    <div>
+      <div class="lpanel-title">Controls</div>
+      <div class="action-btns">
+        <button class="abtn generate" onclick="doGenerate()">⚙ Generate</button>
+        <button class="abtn inject" onclick="doInject()">💉 Inject</button>
+        <button class="abtn run" onclick="doRun()" id="run-btn">▶ Run</button>
+        <button class="abtn reset" onclick="doReset()">↺ Reset</button>
+        <button class="abtn full" onclick="runFullDemo()">▶▶ Full Pipeline Demo</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="lpanel-title">Stream Log</div>
+      <div id="stream-log" style="max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- CENTER PANEL -->
+  <div class="center">
+    <div class="center-tabs">
+      <button class="ctab active" onclick="switchCTab(0)">Pipeline View</button>
+      <button class="ctab" onclick="switchCTab(1)">Agents</button>
+      <button class="ctab" onclick="switchCTab(2)">Timeline</button>
+      <button class="ctab" onclick="switchCTab(3)">Fraud Graph</button>
+    </div>
+    <div class="center-body">
+
+      <!-- Pipeline Canvas -->
+      <div class="cpane active" id="pane-pipeline">
+        <canvas id="pipeline-canvas"></canvas>
+      </div>
+
+      <!-- Agents -->
+      <div class="cpane" id="pane-agents">
+        <div class="agent-grid" id="agent-grid"></div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="cpane" id="pane-timeline">
+        <div class="gantt-wrap" id="gantt-wrap"></div>
+      </div>
+
+      <!-- Graph -->
+      <div class="cpane" id="pane-graph">
+        <canvas id="graph-canvas"></canvas>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right">
+
+    <div class="right-section">
+      <div class="rsec-title">Real-Time Metrics</div>
+      <div class="metrics-grid">
+        <div class="metric"><div class="metric-val" id="m-total">0</div><div class="metric-lbl">Processed</div></div>
+        <div class="metric"><div class="metric-val" style="color:var(--red)" id="m-fraud">0</div><div class="metric-lbl">Frauds Found</div></div>
+        <div class="metric"><div class="metric-val" style="color:var(--yellow)" id="m-rate">0%</div><div class="metric-lbl">Fraud Rate</div></div>
+        <div class="metric"><div class="metric-val" style="color:var(--blue)" id="m-latency">0ms</div><div class="metric-lbl">Avg Latency</div></div>
+        <div class="metric"><div class="metric-val" style="color:var(--purple)" id="m-p95">0ms</div><div class="metric-lbl">P95 Latency</div></div>
+        <div class="metric"><div class="metric-val" id="m-agents">0</div><div class="metric-lbl">Agent Calls</div></div>
+        <div class="metric"><div class="metric-val" id="m-graph">0</div><div class="metric-lbl">Graph Queries</div></div>
+        <div class="metric"><div class="metric-val" id="m-redis">0</div><div class="metric-lbl">Redis Hits</div></div>
+      </div>
+    </div>
+
+    <div class="right-section">
+      <div class="rsec-title">Signal Contributions</div>
+      <div id="signals-panel"></div>
+    </div>
+
+    <div class="right-section">
+      <div class="rsec-title">Risk Score Waterfall</div>
+      <div id="waterfall-panel"></div>
+    </div>
+
+    <div class="right-section">
+      <div class="rsec-title">Confusion Matrix</div>
+      <div class="cm-grid">
+        <div class="cm-cell tp"><div class="cm-val" id="cm-tp">0</div><div class="cm-lbl">True Positive</div></div>
+        <div class="cm-cell fp"><div class="cm-val" id="cm-fp">0</div><div class="cm-lbl">False Positive</div></div>
+        <div class="cm-cell fn"><div class="cm-val" id="cm-fn">0</div><div class="cm-lbl">False Negative</div></div>
+        <div class="cm-cell tn"><div class="cm-val" id="cm-tn">0</div><div class="cm-lbl">True Negative</div></div>
+      </div>
+      <div class="cm-metrics">
+        <div class="cm-m"><div class="cm-m-val" id="cm-acc">—</div><div class="cm-m-lbl">Accuracy</div></div>
+        <div class="cm-m"><div class="cm-m-val" id="cm-prec">—</div><div class="cm-m-lbl">Precision</div></div>
+        <div class="cm-m"><div class="cm-m-val" id="cm-rec">—</div><div class="cm-m-lbl">Recall</div></div>
+        <div class="cm-m"><div class="cm-m-val" id="cm-f1">—</div><div class="cm-m-lbl">F1</div></div>
+      </div>
+    </div>
+
+    <div class="right-section">
+      <div class="rsec-title">Decision Explainer</div>
+      <div class="explainer" id="explainer-panel">
+        <div style="color:var(--muted);font-size:11px">Run a scenario to see the decision explainer.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+let selectedScenario = 'account_takeover';
+let isPaused = false;
+let isRunning = false;
+let streamInterval = null;
+let stepMode = false;
+let stepResolve = null;
+
+// ── Metrics state ──
+const M = {
+  total:0, fraud:0, legit:0, latencies:[], agentCalls:0, graphQ:0, redisHits:0,
+  tp:0, fp:0, tn:0, fn:0,
+  nodeCounters: {}
+};
+// Per pipeline node counters
+const NODES = ['Transaction Generator','Fraud Injector','Fast Screening','Behavior Similarity',
+  'Sequence Intel','Device Reputation','Merchant Reputation','Geo Velocity','Risk Delta',
+  'Conditional Router','Graph Intelligence','Evidence Builder','Consensus Engine',
+  'Explainability','Final Decision'];
+NODES.forEach(n => M.nodeCounters[n] = {processed:0, flagged:0});
+
+// ── Health check ──
+async function checkHealth() {
+  try {
+    const r = await fetch(API+'/health');
+    if(r.ok){
+      document.getElementById('hdot').className='hdot ok';
+      document.getElementById('hstatus').textContent='API online';
+    } else throw new Error();
+  } catch {
+    document.getElementById('hdot').className='hdot err';
+    document.getElementById('hstatus').textContent='API offline — start server';
+  }
+}
+checkHealth(); setInterval(checkHealth,15000);
+
+// ── Tabs ──
+function switchCTab(i) {
+  document.querySelectorAll('.ctab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.querySelectorAll('.cpane').forEach((p,j)=>p.classList.toggle('active',i===j));
+  if(i===0) drawPipeline();
+  if(i===3) drawGraph();
+}
+
+// ── Scenario select ──
+function setScenario(btn, name) {
+  document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedScenario = name;
+}
+
+// ── PIPELINE CANVAS ──
+const PIPELINE_NODES = [
+  {id:'gen',    label:'Transaction\nGenerator', color:'#3b82f6'},
+  {id:'inj',    label:'Fraud\nInjector',        color:'#ef4444'},
+  {id:'screen', label:'Fast\nScreening',        color:'#f59e0b'},
+  {id:'behav',  label:'Behavior\nSimilarity',   color:'#8b5cf6'},
+  {id:'seq',    label:'Sequence\nIntelligence', color:'#06b6d4'},
+  {id:'devrep', label:'Device\nReputation',     color:'#10b981'},
+  {id:'merch',  label:'Merchant\nReputation',   color:'#f97316'},
+  {id:'geo',    label:'Geo Velocity',            color:'#ec4899'},
+  {id:'delta',  label:'Risk Delta',              color:'#a78bfa'},
+  {id:'router', label:'Conditional\nRouter',     color:'#fbbf24'},
+  {id:'graph',  label:'Graph\nIntelligence',     color:'#34d399'},
+  {id:'evid',   label:'Evidence\nBuilder',       color:'#60a5fa'},
+  {id:'cons',   label:'Consensus\nEngine',       color:'#f472b6'},
+  {id:'expl',   label:'Explainability',          color:'#a3e635'},
+  {id:'final',  label:'Final\nDecision',         color:'#fb7185'},
+];
+const nodePositions = [];
+const dots = [];
+let animFrame = null;
+let pipelineCtx = null;
+
+function layoutNodes(W, H) {
+  nodePositions.length = 0;
+  const cols = 5, rows = Math.ceil(PIPELINE_NODES.length/cols);
+  const nx = W/cols, ny = H/rows;
+  PIPELINE_NODES.forEach((n,i) => {
+    const col = i%cols, row = Math.floor(i/cols);
+    nodePositions.push({
+      x: col*nx + nx/2, y: row*ny + ny/2,
+      w: nx*0.8, h: ny*0.72,
+      node: n
+    });
+  });
+}
+
+function drawPipeline() {
+  const canvas = document.getElementById('pipeline-canvas');
+  const wrap = document.getElementById('pane-pipeline');
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  const ctx = canvas.getContext('2d');
+  pipelineCtx = ctx;
+  layoutNodes(canvas.width, canvas.height);
+  renderPipeline(ctx, canvas.width, canvas.height);
+}
+
+function renderPipeline(ctx, W, H) {
+  ctx.clearRect(0,0,W,H);
+  // Draw edges
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 1.5;
+  for(let i=0; i<nodePositions.length-1; i++) {
+    const a = nodePositions[i], b = nodePositions[i+1];
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y+a.h/2);
+    ctx.lineTo(b.x, b.y-b.h/2);
+    ctx.stroke();
+  }
+  // Draw nodes
+  nodePositions.forEach((pos,i) => {
+    const n = pos.node;
+    const cnt = M.nodeCounters[PIPELINE_NODES[i]?.label?.replace('\n',' ')] || {processed:0,flagged:0};
+    const isActive = dots.some(d=>d.nodeIdx===i && d.progress>0.3 && d.progress<0.7);
+    ctx.fillStyle = isActive ? n.color+'33' : '#111827';
+    ctx.strokeStyle = isActive ? n.color : '#1f2937';
+    ctx.lineWidth = isActive ? 2 : 1;
+    roundRect(ctx, pos.x-pos.w/2, pos.y-pos.h/2, pos.w, pos.h, 8);
+    ctx.fill(); ctx.stroke();
+    // Label
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 10px system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = n.label.split('\n');
+    lines.forEach((line,li)=>{
+      ctx.fillText(line, pos.x, pos.y - 10 + li*13 - (lines.length-1)*6);
+    });
+    // Counters
+    ctx.font = '9px system-ui';
+    ctx.fillStyle = '#6b7280';
+    const p = M.nodeCounters[n.label.replace('\n',' ')] || {processed:0,flagged:0};
+    ctx.fillText(`P:${p.processed} F:${p.flagged}`, pos.x, pos.y+pos.h/2-8);
+    // Color dot
+    ctx.fillStyle = n.color;
+    ctx.beginPath(); ctx.arc(pos.x-pos.w/2+8, pos.y-pos.h/2+8, 3, 0, Math.PI*2); ctx.fill();
+  });
+  // Draw transaction dots
+  dots.forEach(d => {
+    if(d.nodeIdx >= nodePositions.length-1) return;
+    const from = nodePositions[d.nodeIdx];
+    const to = nodePositions[d.nodeIdx+1];
+    const t = d.progress;
+    const cx = from.x + (to.x - from.x) * t;
+    const cy = (from.y+from.h/2) + (to.y-to.h/2 - from.y-from.h/2) * t;
+    const color = d.type==='fraud' ? '#ef4444' : d.type==='investigating' ? '#f59e0b' : '#10b981';
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+
+function animateDots() {
+  const canvas = document.getElementById('pipeline-canvas');
+  if(!canvas.width) return;
+  const ctx = canvas.getContext('2d');
+  dots.forEach((d,i)=>{
+    d.progress += 0.018;
+    if(d.progress >= 1) {
+      d.progress = 0;
+      d.nodeIdx++;
+      if(d.nodeIdx >= PIPELINE_NODES.length-1) {
+        dots.splice(i,1);
+      }
+    }
+  });
+  renderPipeline(ctx, canvas.width, canvas.height);
+  animFrame = requestAnimationFrame(animateDots);
+}
+
+function spawnDot(type) {
+  dots.push({nodeIdx:0, progress:0, type});
+}
+
+// ── AGENT PANEL ──
+const AGENTS = [
+  'Behavior','Device','Geo','Merchant','Graph',
+  'Investigation','Counterfactual','Explainability','Analyst','Storytelling'
+];
+const agentState = {};
+AGENTS.forEach(a => agentState[a]={status:'waiting',time:0,confidence:0,output:''});
+
+function buildAgentGrid() {
+  const grid = document.getElementById('agent-grid');
+  grid.innerHTML = '';
+  AGENTS.forEach(name => {
+    const s = agentState[name];
+    const card = document.createElement('div');
+    card.className = 'agent-card ' + s.status;
+    card.id = 'ag-' + name;
+    card.innerHTML = `
+      <div class="ag-name">${name} Agent</div>
+      <span class="ag-status ${s.status}">${s.status.charAt(0).toUpperCase()+s.status.slice(1)}</span>
+      <div class="ag-row"><span>Exec Time</span><span>${s.time}ms</span></div>
+      <div class="ag-row"><span>Confidence</span><span>${s.confidence}%</span></div>
+      <div class="ag-output">${s.output||'Waiting for input…'}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function updateAgent(name, status, time, confidence, output) {
+  agentState[name] = {status,time,confidence,output};
+  const card = document.getElementById('ag-'+name);
+  if(!card) return buildAgentGrid();
+  card.className = 'agent-card ' + status;
+  card.querySelector('.ag-status').className = 'ag-status '+status;
+  card.querySelector('.ag-status').textContent = status.charAt(0).toUpperCase()+status.slice(1);
+  const rows = card.querySelectorAll('.ag-row span:last-child');
+  rows[0].textContent = time+'ms';
+  rows[1].textContent = confidence+'%';
+  card.querySelector('.ag-output').textContent = output||'Waiting for input…';
+}
+
+function resetAgents() {
+  AGENTS.forEach(a => { agentState[a]={status:'waiting',time:0,confidence:0,output:''}; });
+  buildAgentGrid();
+}
+
+// ── GANTT TIMELINE ──
+function renderGantt(breakdown) {
+  const wrap = document.getElementById('gantt-wrap');
+  if(!breakdown){wrap.innerHTML='<div style="color:var(--muted);font-size:11px;padding:12px">Run a pipeline to see timing.</div>';return;}
+  const items=[
+    {label:'Fast Screening',   ms:breakdown.fast_screening_ms||0,     color:'#f59e0b'},
+    {label:'Pre-Agent Analysis',ms:breakdown.pre_agent_analysis_ms||0, color:'#8b5cf6'},
+    {label:'Evidence Build',   ms:breakdown.evidence_build_ms||0,      color:'#60a5fa'},
+    {label:'Parallel Agents',  ms:breakdown.parallel_agents_ms||0,     color:'#10b981'},
+    {label:'Consensus',        ms:breakdown.consensus_ms||0,           color:'#f472b6'},
+    {label:'Investigation',    ms:breakdown.investigation_ms||0,        color:'#06b6d4'},
+    {label:'Explainability',   ms:breakdown.explainability_ms||0,       color:'#a3e635'},
+    {label:'Analyst',          ms:breakdown.analyst_ms||0,             color:'#fb7185'},
+    {label:'Storytelling',     ms:breakdown.storytelling_ms||0,        color:'#fbbf24'},
+  ];
+  const maxMs = Math.max(...items.map(i=>i.ms), 1);
+  let cumulative = 0;
+  wrap.innerHTML = '<div style="font-size:10px;color:var(--muted);margin-bottom:8px">Gantt — execution timeline</div>';
+  items.forEach(item => {
+    const pct = (item.ms/maxMs*100).toFixed(1);
+    const offsetPct = (cumulative/maxMs*100).toFixed(1);
+    const row = document.createElement('div');
+    row.className = 'gantt-row';
+    row.innerHTML = `
+      <div class="gantt-label">${item.label}</div>
+      <div class="gantt-track">
+        <div class="gantt-bar" style="left:0%;width:${pct}%;background:${item.color}">${item.ms.toFixed(1)}ms</div>
+      </div>
+      <div class="gantt-ms">${item.ms.toFixed(1)}ms</div>
+    `;
+    wrap.appendChild(row);
+    cumulative += item.ms;
+  });
+}
+
+// ── FRAUD GRAPH CANVAS ──
+const graphNodes = [];
+const graphEdges = [];
+let graphAnimFrame = null;
+
+function initGraph() {
+  const types = ['user','device','merchant','account'];
+  const colors = {'user':'#3b82f6','device':'#10b981','merchant':'#f97316','account':'#8b5cf6'};
+  graphNodes.length = 0; graphEdges.length = 0;
+  ['U001','U002','U003','D_mob1','D_mob2','D_unk','M_wire','M_elec','ACC1','ACC2'].forEach((id,i)=>{
+    const type = i<3?'user':i<6?'device':i<8?'merchant':'account';
+    graphNodes.push({id,type,color:colors[type],x:0,y:0,vx:0,vy:0,fraud:i===5||i===2});
+  });
+  [[0,3],[1,3],[2,5],[0,6],[1,7],[2,6],[0,8],[1,9],[2,8]].forEach(([a,b])=>graphEdges.push({a,b}));
+}
+initGraph();
+
+function drawGraph() {
+  const canvas = document.getElementById('graph-canvas');
+  const wrap = document.getElementById('pane-graph');
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  // Simple force layout
+  const W=canvas.width, H=canvas.height;
+  if(!graphNodes[0].x) graphNodes.forEach((n,i)=>{
+    n.x=W/2+Math.cos(i/graphNodes.length*Math.PI*2)*Math.min(W,H)*0.35;
+    n.y=H/2+Math.sin(i/graphNodes.length*Math.PI*2)*Math.min(W,H)*0.35;
+  });
+  if(graphAnimFrame) cancelAnimationFrame(graphAnimFrame);
+  function render(){
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,W,H);
+    // Force simulation step
+    graphNodes.forEach((a,i)=>{
+      graphNodes.forEach((b,j)=>{
+        if(i===j)return;
+        const dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        const f=80*80/(d*d);
+        a.vx+=dx/d*f*0.05; a.vy+=dy/d*f*0.05;
+      });
+      a.vx+=(W/2-a.x)*0.001; a.vy+=(H/2-a.y)*0.001;
+      a.vx*=0.85; a.vy*=0.85;
+      a.x+=a.vx; a.y+=a.vy;
+      a.x=Math.max(30,Math.min(W-30,a.x));
+      a.y=Math.max(30,Math.min(H-30,a.y));
+    });
+    // Edges
+    graphEdges.forEach(e=>{
+      const a=graphNodes[e.a],b=graphNodes[e.b];
+      ctx.strokeStyle='#1f2937'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    });
+    // Nodes
+    graphNodes.forEach(n=>{
+      ctx.fillStyle=n.fraud?'#7f1d1d':n.color+'22';
+      ctx.strokeStyle=n.fraud?'#ef4444':n.color;
+      ctx.lineWidth=n.fraud?2:1;
+      ctx.beginPath(); ctx.arc(n.x,n.y,14,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      if(n.fraud){
+        ctx.strokeStyle='#ef4444'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.arc(n.x,n.y,20,0,Math.PI*2); ctx.stroke();
+      }
+      ctx.fillStyle='#e2e8f0'; ctx.font='bold 9px system-ui';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(n.id,n.x,n.y);
+    });
+    // Legend
+    ctx.font='10px system-ui'; ctx.textAlign='left';
+    [['#3b82f6','User'],['#10b981','Device'],['#f97316','Merchant'],['#8b5cf6','Account'],['#ef4444','Fraud Node']].forEach(([c,l],i)=>{
+      ctx.fillStyle=c; ctx.beginPath(); ctx.arc(16,16+i*18,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#6b7280'; ctx.fillText(l,26,16+i*18+1);
+    });
+    graphAnimFrame=requestAnimationFrame(render);
+  }
+  render();
+}
+
+// ── SIGNALS & WATERFALL ──
+function renderSignals(result) {
+  const panel = document.getElementById('signals-panel');
+  const exp = result.explainability||{};
+  const consensus = result.consensus||{};
+  const agentRisks = consensus.agent_risks||[];
+  const signals = [
+    {name:'Behavior Similarity', score: agentRisks.find(a=>a.agent==='behavior')?.risk_score||0, color:'#8b5cf6'},
+    {name:'Device Reputation',   score: agentRisks.find(a=>a.agent==='device')?.risk_score||0,   color:'#10b981'},
+    {name:'Geo Velocity',        score: agentRisks.find(a=>a.agent==='geo')?.risk_score||0,      color:'#ec4899'},
+    {name:'Merchant Reputation', score: agentRisks.find(a=>a.agent==='merchant')?.risk_score||0, color:'#f97316'},
+    {name:'Graph Intelligence',  score: agentRisks.find(a=>a.agent==='graph')?.risk_score||0,    color:'#34d399'},
+    {name:'Pre-Risk Score',      score: result.pre_risk_score||0,                                  color:'#f59e0b'},
+  ];
+  panel.innerHTML = signals.map(s=>{
+    const pct = Math.min(100,s.score).toFixed(0);
+    const col = s.score>70?'#ef4444':s.score>40?'#f59e0b':'#10b981';
+    return `<div class="sig-row">
+      <div class="sig-header"><span class="sig-name">${s.name}</span><span class="sig-score" style="color:${col}">+${Math.round(s.score)}</span></div>
+      <div class="sig-track"><div class="sig-fill" style="width:${pct}%;background:${s.color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderWaterfall(result) {
+  const panel = document.getElementById('waterfall-panel');
+  const consensus = result.consensus||{};
+  const agentRisks = consensus.agent_risks||[];
+  const base = 20;
+  const items = [
+    {label:'Base Score', val:base, add:false},
+    {label:'Behavior', val:Math.round((agentRisks.find(a=>a.agent==='behavior')?.risk_score||0)*0.25), add:true},
+    {label:'Device', val:Math.round((agentRisks.find(a=>a.agent==='device')?.risk_score||0)*0.20), add:true},
+    {label:'Geo', val:Math.round((agentRisks.find(a=>a.agent==='geo')?.risk_score||0)*0.20), add:true},
+    {label:'Merchant', val:Math.round((agentRisks.find(a=>a.agent==='merchant')?.risk_score||0)*0.15), add:true},
+    {label:'Graph', val:Math.round((agentRisks.find(a=>a.agent==='graph')?.risk_score||0)*0.20), add:true},
+    {label:'Final Score', val:Math.round(consensus.risk_score||0), add:false},
+  ];
+  const maxVal = Math.max(...items.map(i=>i.val), 1);
+  panel.innerHTML = items.map((item,i) => {
+    const isTotal = i===0||i===items.length-1;
+    const col = isTotal ? '#3b82f6' : item.val>15 ? '#ef4444' : '#10b981';
+    const pct = (item.val/maxVal*100).toFixed(0);
+    return `<div class="wf-row">
+      <div class="wf-label">${item.label}</div>
+      <div class="wf-bar-wrap"><div class="wf-bar" style="width:${pct}%;background:${col}">${item.add?'+':''}${item.val}</div></div>
+      <div class="wf-val" style="color:${col}">${item.add?'+':''}${item.val}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── DECISION EXPLAINER ──
+function renderExplainer(result, scenarioName) {
+  const panel = document.getElementById('explainer-panel');
+  const exp = result.explainability||{};
+  const cf = result.counterfactual||{};
+  const rec = result.analyst_recommendation||{};
+  const risk = Math.round(result.consensus?.risk_score||result.pre_risk_score||0);
+  const dec = result.final_decision||'UNKNOWN';
+  const decColor = dec==='APPROVED'?'#10b981':dec==='MONITORING'?'#f59e0b':dec.includes('BLOCK')?'#ef4444':'#8b5cf6';
+  const factors = exp.contributing_factors||[];
+  const neg = [];
+  if(risk<30) neg.push('known device','trusted merchant');
+  const cfItems = Object.entries(cf.counterfactuals||{}).slice(0,3);
+
+  panel.innerHTML = `
+    <div class="exp-txn">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:700;font-size:12px">${scenarioName.replace(/_/g,' ')}</span>
+        <span style="font-size:18px;font-weight:800;color:${risk>60?'#ef4444':risk>35?'#f59e0b':'#10b981'}">${risk}/100</span>
+      </div>
+      <div style="margin-bottom:6px"><span class="decision-badge" style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;background:${decColor}22;color:${decColor};border:1px solid ${decColor}">${dec.replace(/_/g,' ')}</span></div>
+      <div style="font-size:10px;color:var(--muted)">${exp.human_explanation||rec.reason||''}</div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600">FRAUD SIGNALS</div>
+    <div class="exp-signals">
+      ${factors.map(f=>`<span class="exp-sig pos">${f}</span>`).join('')}
+      ${neg.map(n=>`<span class="exp-sig neg">${n}</span>`).join('')}
+    </div>
+    ${cf.primary_contributor?`
+    <div class="exp-cf">
+      <div style="font-weight:700;margin-bottom:4px">Counterfactual Analysis</div>
+      <div>Primary driver: <strong>${cf.primary_contributor}</strong> (weight: ${cf.contribution_score}/100)</div>
+      ${cfItems.map(([k,v])=>`<div style="margin-top:2px">If <em>${k}</em> was absent → risk would be <strong>${Math.round(v)}/100</strong></div>`).join('')}
+    </div>`:''}
+  `;
+  // Inline decision badge style
+  const style=document.createElement('style');
+  style.textContent='.decision-badge{display:inline-block}';
+  panel.appendChild(style);
+}
+
+// ── CONFUSION MATRIX ──
+function updateCM() {
+  const {tp,fp,tn,fn} = M;
+  document.getElementById('cm-tp').textContent=tp;
+  document.getElementById('cm-fp').textContent=fp;
+  document.getElementById('cm-tn').textContent=tn;
+  document.getElementById('cm-fn').textContent=fn;
+  const total=tp+fp+tn+fn;
+  if(!total) return;
+  const acc=((tp+tn)/total*100).toFixed(0)+'%';
+  const prec=tp+fp?((tp/(tp+fp))*100).toFixed(0)+'%':'—';
+  const rec=tp+fn?((tp/(tp+fn))*100).toFixed(0)+'%':'—';
+  const f1=(tp+fp&&tp+fn)?((2*tp/(2*tp+fp+fn))*100).toFixed(0)+'%':'—';
+  document.getElementById('cm-acc').textContent=acc;
+  document.getElementById('cm-prec').textContent=prec;
+  document.getElementById('cm-rec').textContent=rec;
+  document.getElementById('cm-f1').textContent=f1;
+}
+
+// ── METRICS ──
+function updateMetrics() {
+  document.getElementById('m-total').textContent=M.total;
+  document.getElementById('m-fraud').textContent=M.fraud;
+  document.getElementById('m-rate').textContent=M.total?Math.round(M.fraud/M.total*100)+'%':'0%';
+  if(M.latencies.length){
+    const avg=Math.round(M.latencies.reduce((a,b)=>a+b,0)/M.latencies.length);
+    const sorted=[...M.latencies].sort((a,b)=>a-b);
+    const p95=Math.round(sorted[Math.floor(sorted.length*0.95)]||sorted[sorted.length-1]);
+    document.getElementById('m-latency').textContent=avg+'ms';
+    document.getElementById('m-p95').textContent=p95+'ms';
+  }
+  document.getElementById('m-agents').textContent=M.agentCalls;
+  document.getElementById('m-graph').textContent=M.graphQ;
+  document.getElementById('m-redis').textContent=M.redisHits;
+}
+
+// ── STREAM LOG ──
+function addLog(txnId, decision, isFraud, risk) {
+  const log = document.getElementById('stream-log');
+  const cls = isFraud ? 'fraud' : risk>35 ? 'invest' : 'legit';
+  const ts = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const entry = document.createElement('div');
+  entry.className = 'log-entry '+cls;
+  entry.innerHTML = `<span class="log-ts">${ts}</span><span class="log-dec">${decision}</span><span>${risk.toFixed(0)}/100</span>`;
+  log.insertBefore(entry, log.firstChild);
+  if(log.children.length>50) log.lastChild.remove();
+}
+
+// ── NODE COUNTER UPDATE ──
+function tickNode(nodeName, flagged) {
+  if(M.nodeCounters[nodeName]) {
+    M.nodeCounters[nodeName].processed++;
+    if(flagged) M.nodeCounters[nodeName].flagged++;
+  }
+}
+
+// ── SIMULATE AGENTS from result ──
+async function animateAgentsFromResult(result, isFraud) {
+  const consensus = result.consensus||{};
+  const agentRisks = consensus.agent_risks||[];
+  const parallel = ['Behavior','Device','Geo','Merchant','Graph'];
+  // Reset
+  AGENTS.forEach(a=>updateAgent(a,'waiting',0,0,''));
+  // Fast screening
+  updateAgent('Behavior','running',0,0,'Screening transaction...');
+  await sleep(300);
+  // Parallel agents
+  parallel.forEach(name=>{
+    const ar = agentRisks.find(a=>a.agent===name.toLowerCase());
+    updateAgent(name,'running',0,0,'Analyzing...');
+    M.agentCalls++;
+  });
+  await sleep(400);
+  parallel.forEach(name=>{
+    const ar = agentRisks.find(a=>a.agent===name.toLowerCase());
+    const score = ar?.risk_score||0;
+    const findings = (ar?.key_findings||[]).join(', ')||'No anomalies';
+    updateAgent(name,'done',
+      Math.round(2+Math.random()*8),
+      Math.round(ar?.confidence*100||70),
+      `Risk: ${Math.round(score)}/100 — ${findings}`
+    );
+  });
+  await sleep(200);
+  updateAgent('Investigation','running',0,0,'Building investigation...');
+  M.graphQ++;
+  await sleep(300);
+  updateAgent('Investigation','done',Math.round(5+Math.random()*5),82,
+    `Verdict: ${isFraud?'SUSPICIOUS':'CLEAN'} | Pattern: ${result.explainability?.matched_fraud_pattern||'none'}`);
+  updateAgent('Counterfactual','running',0,0,'Analyzing counterfactuals...');
+  await sleep(200);
+  updateAgent('Counterfactual','done',Math.round(2+Math.random()*3),75,
+    result.counterfactual?.primary_contributor?`Primary driver: ${result.counterfactual.primary_contributor}`:'No key driver');
+  updateAgent('Explainability','running',0,0,'Generating explanation...');
+  await sleep(150);
+  updateAgent('Explainability','done',Math.round(1+Math.random()*2),90,
+    (result.explainability?.human_explanation||'').substring(0,60)+'...');
+  updateAgent('Analyst','running',0,0,'Making recommendation...');
+  await sleep(150);
+  updateAgent('Analyst','done',Math.round(1+Math.random()*2),88,
+    result.analyst_recommendation?.reason?.substring(0,60)||'Decision made');
+  updateAgent('Storytelling','running',0,0,'Writing narrative...');
+  await sleep(200);
+  updateAgent('Storytelling','done',Math.round(2+Math.random()*3),85,'Narrative generated');
+}
+
+// ── CORE: run single scenario & update all panels ──
+async function runSingleTransaction(scenario, isFraudInjected) {
+  if(stepMode) { await new Promise(r=>{ stepResolve=r; }); }
+  if(isPaused) { await waitUnpaused(); }
+
+  spawnDot(isFraudInjected?'fraud':'investigating');
+
+  let result;
+  try {
+    const resp = await fetch(API+'/demo/scenario/'+scenario, {method:'POST'});
+    const data = await resp.json();
+    result = data.result || data;
+  } catch(e) {
+    console.error(e);
+    return;
+  }
+
+  const consensus = result.consensus||{};
+  const risk = consensus.risk_score||result.pre_risk_score||0;
+  const decision = result.final_decision||'UNKNOWN';
+  const isFraudResult = decision!=='APPROVED' && risk>40;
+  const latency = result.total_latency_ms||0;
+
+  // Update metrics
+  M.total++;
+  M.latencies.push(latency);
+  M.redisHits += 3;
+  if(isFraudInjected && isFraudResult) M.tp++;
+  else if(!isFraudInjected && !isFraudResult) M.tn++;
+  else if(isFraudInjected && !isFraudResult) M.fn++;
+  else M.fp++;
+  if(isFraudResult) M.fraud++;
+  else M.legit++;
+
+  // Update node counters
+  const deepInv = result.routed_to_deep_investigation;
+  NODES.forEach(n => tickNode(n, isFraudResult));
+
+  // Update all panels
+  updateMetrics();
+  updateCM();
+  renderSignals(result);
+  renderWaterfall(result);
+  renderGantt(result.latency_breakdown);
+  renderExplainer(result, scenario);
+  addLog(result.transaction_id||'txn', decision, isFraudResult, risk);
+
+  // Animate agents (only on pipeline/agent tab)
+  animateAgentsFromResult(result, isFraudResult);
+
+  // Update graph
+  if(isFraudResult) {
+    graphNodes[2].fraud = true;
+    const n={id:'D_new'+M.total,type:'device',color:'#10b981',x:Math.random()*400+100,y:Math.random()*300+100,vx:0,vy:0,fraud:true};
+    if(graphNodes.length<20) { graphNodes.push(n); graphEdges.push({a:2,b:graphNodes.length-1}); }
+  }
+}
+
+function waitUnpaused() {
+  return new Promise(r => {
+    const check = setInterval(()=>{ if(!isPaused){clearInterval(check);r();} },100);
+  });
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── CONTROLS ──
+async function doGenerate() {
+  addLog('SYSTEM','GENERATING',false,0);
+  for(let i=0;i<3;i++){ spawnDot('legit'); await sleep(200); }
+}
+
+async function doInject() {
+  addLog('SYSTEM','INJECTING FRAUD',true,85);
+  spawnDot('fraud'); spawnDot('fraud');
+}
+
+async function doRun() {
+  if(isRunning) return;
+  isRunning = true;
+  document.getElementById('run-btn').disabled = true;
+  const count = parseInt(document.getElementById('txn-count').value);
+  const fraudPct = parseInt(document.getElementById('fraud-pct').value)/100;
+  const speed = parseInt(document.getElementById('speed').value);
+  const scenarios = ['account_takeover','card_testing','legitimate_travel','impossible_travel','velocity_fraud'];
+
+  for(let i=0; i<count; i++){
+    if(!isRunning) break;
+    const isFraud = Math.random() < fraudPct;
+    const fraudScenarios = ['account_takeover','card_testing','impossible_travel','velocity_fraud'];
+    const legitScenarios = ['legitimate_travel'];
+    const pool = isFraud ? fraudScenarios : legitScenarios;
+    const scenario = selectedScenario==='mixed'
+      ? (isFraud ? fraudScenarios[Math.floor(Math.random()*fraudScenarios.length)] : 'legitimate_travel')
+      : selectedScenario;
+    await runSingleTransaction(scenario, isFraud);
+    await sleep(speed);
+  }
+  isRunning = false;
+  document.getElementById('run-btn').disabled = false;
+}
+
+function doReset() {
+  isRunning = false;
+  isPaused = false;
+  Object.assign(M,{total:0,fraud:0,legit:0,latencies:[],agentCalls:0,graphQ:0,redisHits:0,tp:0,fp:0,tn:0,fn:0});
+  NODES.forEach(n => M.nodeCounters[n]={processed:0,flagged:0});
+  dots.length = 0;
+  resetAgents();
+  updateMetrics(); updateCM();
+  document.getElementById('signals-panel').innerHTML='';
+  document.getElementById('waterfall-panel').innerHTML='';
+  renderGantt(null);
+  document.getElementById('explainer-panel').innerHTML='<div style="color:var(--muted);font-size:11px">Run a scenario to see the decision explainer.</div>';
+  document.getElementById('stream-log').innerHTML='';
+  initGraph();
+  drawPipeline();
+}
+
+function resetMetrics() { doReset(); }
+
+function pauseResume() {
+  isPaused = !isPaused;
+  document.getElementById('pause-btn').textContent = isPaused ? '▶ Resume' : '⏸ Pause';
+}
+
+function stepThrough() {
+  stepMode = !stepMode;
+  document.getElementById('step-btn').textContent = stepMode ? '⏭ Auto' : '⏭ Step';
+  if(stepMode && stepResolve){ stepResolve(); stepResolve=null; }
+}
+
+function exportResults() {
+  const data = {
+    timestamp: new Date().toISOString(),
+    metrics: {total:M.total,fraud:M.fraud,legit:M.legit,fraud_rate:M.total?M.fraud/M.total:0,
+      avg_latency:M.latencies.length?M.latencies.reduce((a,b)=>a+b,0)/M.latencies.length:0},
+    confusion_matrix: {tp:M.tp,fp:M.fp,tn:M.tn,fn:M.fn},
+    node_counters: M.nodeCounters
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fraudguard_results_'+Date.now()+'.json';
+  a.click();
+}
+
+async function runFullDemo() {
+  doReset();
+  await sleep(300);
+  switchCTab(0);
+  // Generate phase
+  addLog('DEMO','GENERATING DATA',false,0);
+  for(let i=0;i<5;i++){ spawnDot('legit'); await sleep(150); }
+  await sleep(500);
+  // Inject fraud
+  addLog('DEMO','INJECTING FRAUD',true,90);
+  spawnDot('fraud'); spawnDot('fraud'); spawnDot('fraud');
+  await sleep(500);
+  // Run 8 transactions: mix of fraud and legit
+  const demoScenarios=[
+    {s:'account_takeover',f:true},{s:'card_testing',f:true},
+    {s:'legitimate_travel',f:false},{s:'impossible_travel',f:true},
+    {s:'velocity_fraud',f:true},{s:'legitimate_travel',f:false},
+    {s:'account_takeover',f:true},{s:'legitimate_travel',f:false},
+  ];
+  for(const {s,f} of demoScenarios){
+    await runSingleTransaction(s,f);
+    await sleep(800);
+  }
+  // Switch to agent view halfway
+  await sleep(200);
+  switchCTab(1);
+  await sleep(2000);
+  switchCTab(2);
+  await sleep(2000);
+  switchCTab(3);
+}
+
+// ── INIT ──
+buildAgentGrid();
+drawPipeline();
+renderGantt(null);
+if(animFrame) cancelAnimationFrame(animFrame);
+animFrame = requestAnimationFrame(animateDots);
+
+window.addEventListener('resize', ()=>{
+  drawPipeline();
+  drawGraph();
+});
+</script>
+</body>
+</html>

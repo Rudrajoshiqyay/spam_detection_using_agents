@@ -1,0 +1,128 @@
+{
+  "student": {
+    "cohort": "student",
+    "avg_transaction_amount": 380,
+    "std_transaction_amount": 290,
+    "avg_monthly_transactions": 28,
+    "avg_monthly_spend": 8500,
+    "merchant_preferences": {
+      "food": 0.30,
+      "education": 0.25,
+      "entertainment": 0.20,
+      "clothing": 0.15,
+      "transport": 0.10
+    },
+    "typical_hours": [10, 11, 12, 13, 14, 18, 19, 20, 21],
+    "avg_merchant_diversity": 12,
+    "travel_frequency_score": 0.1,
+    "device_count_avg": 2,
+    "p95_transaction_amount": 1800,
+    "p99_transaction_amount": 4500
+  },
+  "working_professional": {
+    "cohort": "working_professional",
+    "avg_transaction_amount": 1800,
+    "std_transaction_amount": 1500,
+    "avg_monthly_transactions": 45,
+    "avg_monthly_spend": 55000,
+    "merchant_preferences": {
+      "restaurants": 0.20,
+      "groceries": 0.15,
+      "transport": 0.15,
+      "clothing": 0.15,
+      "electronics": 0.10,
+      "entertainment": 0.10,
+      "utilities": 0.15
+    },
+    "typical_hours": [8, 9, 12, 13, 18, 19, 20, 21],
+    "avg_merchant_diversity": 25,
+    "travel_frequency_score": 0.3,
+    "device_count_avg": 3,
+    "p95_transaction_amount": 8000,
+    "p99_transaction_amount": 25000
+  },
+  "traveler": {
+    "cohort": "traveler",
+    "avg_transaction_amount": 5200,
+    "std_transaction_amount": 6000,
+    "avg_monthly_transactions": 65,
+    "avg_monthly_spend": 180000,
+    "merchant_preferences": {
+      "airlines": 0.20,
+      "hotels": 0.20,
+      "restaurants": 0.15,
+      "entertainment": 0.15,
+      "shopping": 0.15,
+      "transport": 0.15
+    },
+    "typical_hours": [7, 8, 9, 10, 12, 13, 17, 18, 19, 20, 21, 22],
+    "avg_merchant_diversity": 60,
+    "travel_frequency_score": 0.9,
+    "device_count_avg": 3,
+    "p95_transaction_amount": 25000,
+    "p99_transaction_amount": 80000
+  },
+  "business_owner": {
+    "cohort": "business_owner",
+    "avg_transaction_amount": 18000,
+    "std_transaction_amount": 25000,
+    "avg_monthly_transactions": 90,
+    "avg_monthly_spend": 800000,
+    "merchant_preferences": {
+      "wholesale": 0.25,
+      "suppliers": 0.20,
+      "travel": 0.15,
+      "restaurants": 0.10,
+      "technology": 0.15,
+      "services": 0.15
+    },
+    "typical_hours": [9, 10, 11, 12, 14, 15, 16, 17],
+    "avg_merchant_diversity": 40,
+    "travel_frequency_score": 0.5,
+    "device_count_avg": 4,
+    "p95_transaction_amount": 100000,
+    "p99_transaction_amount": 500000
+  },
+  "retired": {
+    "cohort": "retired",
+    "avg_transaction_amount": 950,
+    "std_transaction_amount": 600,
+    "avg_monthly_transactions": 20,
+    "avg_monthly_spend": 18000,
+    "merchant_preferences": {
+      "groceries": 0.30,
+      "medical": 0.20,
+      "utilities": 0.15,
+      "restaurants": 0.15,
+      "entertainment": 0.10,
+      "clothing": 0.10
+    },
+    "typical_hours": [9, 10, 11, 12, 14, 15, 16],
+    "avg_merchant_diversity": 10,
+    "travel_frequency_score": 0.15,
+    "device_count_avg": 1,
+    "p95_transaction_amount": 3000,
+    "p99_transaction_amount": 8000
+  },
+  "high_net_worth": {
+    "cohort": "high_net_worth",
+    "avg_transaction_amount": 52000,
+    "std_transaction_amount": 80000,
+    "avg_monthly_transactions": 55,
+    "avg_monthly_spend": 1500000,
+    "merchant_preferences": {
+      "luxury": 0.25,
+      "travel": 0.20,
+      "fine_dining": 0.15,
+      "investments": 0.20,
+      "real_estate": 0.10,
+      "entertainment": 0.10
+    },
+    "typical_hours": [10, 11, 12, 14, 15, 16, 19, 20, 21],
+    "avg_merchant_diversity": 35,
+    "travel_frequency_score": 0.7,
+    "device_count_avg": 4,
+    "p95_transaction_amount": 300000,
+    "p99_transaction_amount": 2000000
+  }
+}

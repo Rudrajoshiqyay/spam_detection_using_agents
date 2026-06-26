@@ -1,0 +1,54 @@
+{
+  "project": "FraudGuard AI",
+  "version": "1.0.0",
+  "last_scanned": "2026-06-23",
+  "root": "c:/Users/User/Desktop/fraud-detection-system",
+  "modules": {
+    "pipeline": ["app/pipeline/fraud_pipeline.py"],
+    "agents": [
+      "app/agents/behavior_agent.py", "app/agents/device_agent.py",
+      "app/agents/geo_agent.py", "app/agents/merchant_agent.py",
+      "app/agents/graph_agent.py", "app/agents/investigation_agent.py",
+      "app/agents/counterfactual_agent.py", "app/agents/explainability_agent.py",
+      "app/agents/analyst_agent.py", "app/agents/storytelling_agent.py"
+    ],
+    "services": [
+      "app/services/fast_screening.py", "app/services/feature_store.py",
+      "app/services/consensus_engine.py", "app/services/graph_intelligence.py",
+      "app/services/fraud_patterns.py", "app/services/sequence_intelligence.py",
+      "app/services/kill_chain.py", "app/services/cohort_analysis.py",
+      "app/services/risk_delta.py", "app/services/device_reputation.py",
+      "app/services/merchant_reputation.py", "app/services/geo_velocity.py",
+      "app/services/negative_signals.py", "app/services/evidence_builder.py",
+      "app/services/evidence_reliability.py", "app/services/behavioral_similarity.py"
+    ],
+    "simulation": [
+      "app/simulation/persona_agent.py", "app/simulation/fraud_campaign_agent.py",
+      "app/simulation/fraud_ring_agent.py", "app/simulation/adversarial_agent.py",
+      "app/simulation/fraud_evolution_agent.py", "app/simulation/population_simulator.py",
+      "app/simulation/world_builder.py", "app/simulation/temporal_simulator.py",
+      "app/simulation/ground_truth_store.py", "app/simulation/label_leakage_detector.py",
+      "app/simulation/dataset_validator.py", "app/simulation/evaluation_engine.py"
+    ],
+    "feedback": [
+      "app/feedback/feedback_store.py", "app/feedback/pattern_evolution.py",
+      "app/feedback/reputation_updater.py"
+    ],
+    "api": ["app/main.py"],
+    "config": ["app/config.py"]
+  },
+  "key_components": {
+    "fast_screening_threshold": "settings.fast_screening_threshold (default ~35)",
+    "consensus_weights": {"behavior": 0.25, "device": 0.20, "geo": 0.20, "merchant": 0.15, "graph": 0.20},
+    "consensus_blend": "weighted_agents*0.70 + pre_risk*0.20 + signal_risk*0.10",
+    "pipeline_nodes": 12,
+    "total_llm_agents": 10,
+    "parallel_agents": 5,
+    "persona_count": 8,
+    "campaign_types": 6,
+    "ring_types": 5,
+    "mutation_types": 8,
+    "evolution_generations": 4,
+    "graph_type": "in-memory NetworkX undirected"
+  }
+}

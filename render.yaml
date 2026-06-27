@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: fraudguard-ai
+    runtime: python
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /ready
+    envVars:
+      # Pin Python version (also set in runtime.txt)
+      - key: PYTHON_VERSION
+        value: 3.11.9
+
+      # ── Required secrets ── set these in the Render dashboard
+      - key: GROQ_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+
+      # ── Optional secrets
+      - key: API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+
+      # ── Application defaults (safe to commit)
+      - key: MOCK_LLM
+        value: "false"
+      - key: USE_FAKE_REDIS
+        value: "false"
+      - key: FAST_MODEL
+        value: "llama-3.1-8b-instant"
+      - key: DEEP_MODEL
+        value: "llama-3.3-70b-versatile"
+      - key: FAST_SCREENING_THRESHOLD
+        value: "35"
+      - key: HIGH_RISK_THRESHOLD
+        value: "70"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: APP_ENV
+        value: "production"
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""

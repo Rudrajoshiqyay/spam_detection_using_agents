@@ -1,3 +1,9 @@
+# ============================================================
+# FraudGuard AI — Python 3.11 required (see runtime.txt)
+# All packages have pre-built wheels for Python 3.11.
+# ============================================================
+
+# API framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.6
 pydantic>=2.9.2
@@ -24,13 +30,8 @@ slowapi>=0.1.9
 # Metrics
 prometheus-fastapi-instrumentator>=7.0.0
 
-# Graph
+# Graph analysis
 networkx==3.3
-matplotlib==3.9.2
-
-# Data / Math
-numpy==1.26.4
-scipy==1.14.1
 
 # Database
 sqlalchemy==2.0.35

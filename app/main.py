@@ -47,7 +47,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import structlog
 from fastapi import FastAPI, HTTPException, Query, Request

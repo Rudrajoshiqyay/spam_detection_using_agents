@@ -313,7 +313,7 @@ class TestFeedbackStore:
 class TestPatternEvolution:
 
     def test_no_module_level_llm_init(self):
-        """pattern_evolution must not instantiate ChatOpenAI at import time."""
+        """pattern_evolution must not instantiate ChatGroq at import time."""
         import importlib
         import sys
         # Remove from cache to force fresh import
@@ -321,9 +321,9 @@ class TestPatternEvolution:
         for m in mods_to_remove:
             del sys.modules[m]
 
-        with patch("app.llm.grok_client.ChatOpenAI") as mock_cls:
+        with patch("app.llm.grok_client.ChatGroq") as mock_cls:
             import app.feedback.pattern_evolution  # noqa: F401
-            # ChatOpenAI must NOT have been called at import time
+            # ChatGroq must NOT have been called at import time
             mock_cls.assert_not_called()
 
     def test_safe_notes_truncates_and_redacts(self):

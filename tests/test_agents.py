@@ -345,41 +345,41 @@ class TestLlmClients:
         reset_clients()
 
     def test_fast_llm_lazy_init_same_instance(self, monkeypatch):
-        import app.agents._llm_clients as m
+        import app.llm.grok_client as m
         fake = MagicMock()
-        monkeypatch.setattr(m, "ChatAnthropic", MagicMock(return_value=fake))
+        monkeypatch.setattr(m, "ChatOpenAI", MagicMock(return_value=fake))
         c1 = m.get_fast_llm()
         c2 = m.get_fast_llm()
         assert c1 is c2
 
     def test_fast_llm_created_once(self, monkeypatch):
-        import app.agents._llm_clients as m
+        import app.llm.grok_client as m
         mock_cls = MagicMock(return_value=MagicMock())
-        monkeypatch.setattr(m, "ChatAnthropic", mock_cls)
+        monkeypatch.setattr(m, "ChatOpenAI", mock_cls)
         m.get_fast_llm()
         m.get_fast_llm()
         assert mock_cls.call_count == 1
 
     def test_deep_llm_lazy_init_same_instance(self, monkeypatch):
-        import app.agents._llm_clients as m
+        import app.llm.grok_client as m
         fake = MagicMock()
-        monkeypatch.setattr(m, "ChatAnthropic", MagicMock(return_value=fake))
+        monkeypatch.setattr(m, "ChatOpenAI", MagicMock(return_value=fake))
         c1 = m.get_deep_llm()
         c2 = m.get_deep_llm()
         assert c1 is c2
 
     def test_reset_forces_reinit(self, monkeypatch):
-        import app.agents._llm_clients as m
+        import app.llm.grok_client as m
         instances = [MagicMock(), MagicMock()]
-        monkeypatch.setattr(m, "ChatAnthropic", MagicMock(side_effect=instances))
+        monkeypatch.setattr(m, "ChatOpenAI", MagicMock(side_effect=instances))
         c1 = m.get_fast_llm()
         m.reset_clients()
         c2 = m.get_fast_llm()
         assert c1 is not c2
 
     def test_fast_and_deep_clients_are_separate(self, monkeypatch):
-        import app.agents._llm_clients as m
-        monkeypatch.setattr(m, "ChatAnthropic", MagicMock(side_effect=[MagicMock(), MagicMock()]))
+        import app.llm.grok_client as m
+        monkeypatch.setattr(m, "ChatOpenAI", MagicMock(side_effect=[MagicMock(), MagicMock()]))
         fast = m.get_fast_llm()
         deep = m.get_deep_llm()
         assert fast is not deep
@@ -587,12 +587,12 @@ class TestFallbackPaths:
     def _mock_fast_raises(self, monkeypatch):
         client = MagicMock()
         client.ainvoke = AsyncMock(side_effect=RuntimeError("API unavailable"))
-        monkeypatch.setattr("app.agents._llm_clients._fast", client)
+        monkeypatch.setattr("app.llm.grok_client._fast", client)
 
     def _mock_deep_raises(self, monkeypatch):
         client = MagicMock()
         client.ainvoke = AsyncMock(side_effect=RuntimeError("API unavailable"))
-        monkeypatch.setattr("app.agents._llm_clients._deep", client)
+        monkeypatch.setattr("app.llm.grok_client._deep", client)
 
     @pytest.mark.anyio
     async def test_behavior_fallback_valid_structure(self, monkeypatch):

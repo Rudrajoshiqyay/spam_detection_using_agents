@@ -29,19 +29,27 @@ class FeatureStore:
         self._redis: Optional[aioredis.Redis] = None
 
     async def connect(self):
-        # Try real Redis first; fall back to fakeredis for demo/dev
         try:
-            client = aioredis.from_url(settings.redis_url, decode_responses=True, socket_connect_timeout=1)
+            client = aioredis.from_url(
+                settings.redis_url,
+                decode_responses=True,
+                socket_connect_timeout=5,  # raised from 1 s — accommodates cold-start TLS handshake
+            )
             await client.ping()
             self._redis = client
-            _logger.info("FeatureStore: connected to Redis at %s", settings.redis_url)
-        except Exception:
+            _logger.info("FeatureStore: connected to Redis at %s", _mask_url(settings.redis_url))
+        except Exception as exc:
+            if not settings.use_fake_redis:
+                raise RuntimeError(
+                    f"FeatureStore: Redis connection failed and USE_FAKE_REDIS=false. "
+                    f"Check REDIS_URL configuration. Original error: {exc}"
+                ) from exc
+            # USE_FAKE_REDIS=true — permitted in dev/demo; fall back to in-memory
             try:
                 import fakeredis.aioredis as fakeredis
                 self._redis = fakeredis.FakeRedis(decode_responses=True)
-                _logger.info("FeatureStore: Redis unavailable — using fakeredis (in-memory, demo mode)")
+                _logger.info("FeatureStore: Redis unavailable — using fakeredis (USE_FAKE_REDIS=true, demo mode)")
             except ImportError:
-                # Last resort: minimal in-memory dict store
                 self._redis = _DictRedis()
                 _logger.warning("FeatureStore: fakeredis not installed — using minimal dict store (no persistence)")
 
@@ -51,6 +59,14 @@ class FeatureStore:
                 await self._redis.aclose()
             except Exception:
                 pass
+
+    async def ping(self) -> bool:
+        """Return True if Redis is responding, False otherwise. Use for health checks."""
+        try:
+            await self._redis.ping()
+            return True
+        except Exception:
+            return False
 
     # ------------------------------------------------------------------
     # Feature retrieval (< 5 ms target via pipeline)
@@ -154,12 +170,34 @@ class FeatureStore:
                                               if isinstance(v, (int, float, str))})
 
     # ------------------------------------------------------------------
+    # Distributed deduplication
+    # ------------------------------------------------------------------
+    async def set_dedup(self, key: str, ttl_secs: int = 300) -> "Optional[bool]":
+        """
+        Atomically register a dedup key.
+        Returns True  — key was new (not a duplicate).
+        Returns False — key already existed (duplicate, SET NX returned None).
+        Returns None  — Redis unavailable; caller must use in-memory fallback.
+        """
+        try:
+            result = await self._redis.set(key, "1", nx=True, ex=ttl_secs)
+            return result is not None
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------
     # Velocity helpers
     # ------------------------------------------------------------------
     async def get_txn_count_window(self, user_id: str, window_seconds: int) -> int:
         now = time.time()
         cutoff = now - window_seconds
         return await self._redis.zcount(f"user:{user_id}:txns", cutoff, "+inf")
+
+
+def _mask_url(url: str) -> str:
+    """Redact password in Redis URL before logging."""
+    import re
+    return re.sub(r"://([^:@]+):([^@]+)@", r"://\1:***@", url)
 
 
 def _is_float(v: str) -> bool:
@@ -177,8 +215,14 @@ class _DictRedis:
         self._sets: dict = {}
         self._zsets: dict = {}
         self._lists: dict = {}
+        self._strings: dict = {}  # for plain SET/GET (e.g. dedup keys)
 
     async def ping(self): return True
+    async def set(self, key, value, nx=False, ex=None):
+        if nx and key in self._strings:
+            return None
+        self._strings[key] = value
+        return True
     async def hgetall(self, key): return dict(self._hashes.get(key, {}))
     async def hset(self, key, mapping=None, **kw):
         self._hashes.setdefault(key, {}).update(mapping or kw)

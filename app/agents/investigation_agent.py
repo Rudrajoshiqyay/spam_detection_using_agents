@@ -13,7 +13,7 @@ from app.agents._agent_base import (
     _clamp_float,
     SUMMARY_MAX_CHARS,
 )
-from app.agents._llm_clients import get_deep_llm
+from app.agents._llm_clients import deep_ainvoke
 from app.models.evidence import InvestigationPackage
 from app.models.fraud_decision import ConsensusResult
 
@@ -80,7 +80,7 @@ async def run_investigation_agent(
     )
 
     try:
-        resp = await get_deep_llm().ainvoke(
+        resp = await deep_ainvoke(
             [SystemMessage(content=_SYSTEM), HumanMessage(content=prompt)]
         )
         data = parse_llm_json(resp.content, _AGENT_NAME)

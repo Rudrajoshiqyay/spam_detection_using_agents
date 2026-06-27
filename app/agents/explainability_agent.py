@@ -11,7 +11,7 @@ import time
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents._agent_base import parse_llm_json, sanitize, sanitize_list, SUMMARY_MAX_CHARS
-from app.agents._llm_clients import get_deep_llm
+from app.agents._llm_clients import deep_ainvoke
 from app.models.evidence import InvestigationPackage
 from app.models.fraud_decision import (
     ConsensusResult, CounterfactualResult, ExplainabilityResult,
@@ -75,7 +75,7 @@ async def run_explainability_agent(
     )
 
     try:
-        resp = await get_deep_llm().ainvoke(
+        resp = await deep_ainvoke(
             [SystemMessage(content=_SYSTEM), HumanMessage(content=prompt)]
         )
         data = parse_llm_json(resp.content, _AGENT_NAME)

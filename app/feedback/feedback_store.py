@@ -2,6 +2,10 @@
 Feedback Store — persists analyst decisions, false positives/negatives,
 and investigation outcomes.
 
+Backend: SQLAlchemy Core async.
+  - Dev/test:   sqlite+aiosqlite:///./fraud_feedback.db  (default)
+  - Production: postgresql+asyncpg://...  (Neon)
+
 Schema is append-only: corrections are new rows, not updates.
 Feedback records include device_id and merchant_id at submission time so
 the reputation updater never has to parse free-text notes.
@@ -10,14 +14,49 @@ the reputation updater never has to parse free-text notes.
 import json
 import logging
 import uuid
-import aiosqlite
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
+from sqlalchemy import text, bindparam
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from sqlalchemy.exc import IntegrityError
+
+from app.config import settings
+
 _logger = logging.getLogger(__name__)
 
-DB_PATH = "fraud_feedback.db"
+_engine: Optional[AsyncEngine] = None
+
+
+def _get_engine() -> AsyncEngine:
+    global _engine
+    if _engine is None:
+        url = settings.database_url
+        kwargs: Dict[str, Any] = {}
+        if url.startswith("postgresql"):
+            import ssl as _ssl
+            ssl_ctx = _ssl.create_default_context()
+            kwargs["connect_args"] = {"ssl": ssl_ctx}
+            # Neon free tier allows 100 connections — keep pool small per instance
+            kwargs["pool_size"] = 3
+            kwargs["max_overflow"] = 5
+            kwargs["pool_timeout"] = 30
+        _engine = create_async_engine(url, **kwargs)
+        _logger.debug(
+            "FeedbackStore: engine created (%s)",
+            url.split("@")[-1] if "@" in url else url,
+        )
+    return _engine
+
+
+async def close_db() -> None:
+    """Dispose the engine and release all pooled connections. Call on shutdown."""
+    global _engine
+    if _engine is not None:
+        await _engine.dispose()
+        _engine = None
+        _logger.info("FeedbackStore: database engine disposed")
 
 
 class OutcomeLabel(str, Enum):
@@ -29,8 +68,11 @@ class OutcomeLabel(str, Enum):
 
 
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
+    engine = _get_engine()
+    is_pg = engine.url.drivername.startswith("postgresql")
+
+    async with engine.begin() as conn:
+        await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS feedback (
                 id TEXT PRIMARY KEY,
                 transaction_id TEXT NOT NULL,
@@ -47,34 +89,37 @@ async def init_db():
                 reviewer_id TEXT,
                 processed_at TEXT
             )
-        """)
-        # Run column migrations BEFORE creating indexes that reference new columns
+        """))
+
         for col, definition in [
             ("device_id", "TEXT"),
             ("merchant_id", "TEXT"),
             ("processed_at", "TEXT"),
         ]:
-            try:
-                await db.execute(f"ALTER TABLE feedback ADD COLUMN {col} {definition}")
-            except Exception:
-                pass  # column already exists
+            if is_pg:
+                await conn.execute(text(
+                    f"ALTER TABLE feedback ADD COLUMN IF NOT EXISTS {col} {definition}"
+                ))
+            else:
+                try:
+                    await conn.execute(text(f"ALTER TABLE feedback ADD COLUMN {col} {definition}"))
+                except Exception:
+                    pass  # column already exists in SQLite
 
-        # Dedup: same analyst cannot submit twice for the same transaction.
-        # COALESCE maps NULL reviewer_id to '' so anonymous submissions are also deduplicated.
-        await db.execute("""
+        await conn.execute(text("""
             CREATE UNIQUE INDEX IF NOT EXISTS idx_dedup
             ON feedback(transaction_id, COALESCE(reviewer_id, ''))
-        """)
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_outcome ON feedback(outcome_label)
-        """)
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_created ON feedback(created_at)
-        """)
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_processed ON feedback(processed_at)
-        """)
-        await db.execute("""
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_outcome ON feedback(outcome_label)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_created ON feedback(created_at)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_processed ON feedback(processed_at)"
+        ))
+        await conn.execute(text("""
             CREATE TABLE IF NOT EXISTS pattern_updates (
                 id TEXT PRIMARY KEY,
                 pattern_name TEXT NOT NULL,
@@ -85,8 +130,7 @@ async def init_db():
                 triggered_by_feedback_id TEXT,
                 created_at TEXT NOT NULL
             )
-        """)
-        await db.commit()
+        """))
 
 
 async def submit_feedback(
@@ -105,38 +149,43 @@ async def submit_feedback(
     feedback_id = f"fb_{uuid.uuid4().hex}"  # full 128-bit UUID for collision safety
     now = datetime.now(timezone.utc).isoformat()
 
-    # Guard against oversized payloads
     if notes and len(notes) > 2000:
         _logger.warning(
             "FeedbackStore: notes truncated to 2000 chars for txn=%r", transaction_id
         )
         notes = notes[:2000]
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        try:
-            await db.execute("""
+    engine = _get_engine()
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
                 INSERT INTO feedback
                 (id, transaction_id, user_id, device_id, merchant_id,
                  system_decision, system_risk_score, analyst_decision,
                  outcome_label, fraud_type_confirmed, notes, created_at, reviewer_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                feedback_id, transaction_id, user_id, device_id, merchant_id,
-                system_decision, system_risk_score, analyst_decision,
-                outcome_label.value, fraud_type_confirmed, notes, now, reviewer_id,
-            ))
-            await db.commit()
-        except aiosqlite.IntegrityError:
-            _logger.warning(
-                "FeedbackStore: duplicate submission for txn=%r reviewer=%r — returning existing id",
-                transaction_id, reviewer_id,
-            )
-            async with db.execute(
-                "SELECT id FROM feedback WHERE transaction_id = ? AND COALESCE(reviewer_id, '') = COALESCE(?, '')",
-                (transaction_id, reviewer_id or ""),
-            ) as cur:
-                row = await cur.fetchone()
-                return row[0] if row else feedback_id
+                VALUES (:id, :txn, :uid, :did, :mid,
+                        :sys_dec, :risk, :ana_dec,
+                        :label, :fraud_type, :notes, :now, :reviewer)
+            """), {
+                "id": feedback_id, "txn": transaction_id, "uid": user_id,
+                "did": device_id, "mid": merchant_id,
+                "sys_dec": system_decision, "risk": system_risk_score,
+                "ana_dec": analyst_decision, "label": outcome_label.value,
+                "fraud_type": fraud_type_confirmed, "notes": notes,
+                "now": now, "reviewer": reviewer_id,
+            })
+    except IntegrityError:
+        _logger.warning(
+            "FeedbackStore: duplicate submission for txn=%r reviewer=%r — returning existing id",
+            transaction_id, reviewer_id,
+        )
+        async with engine.connect() as conn:
+            result = await conn.execute(text(
+                "SELECT id FROM feedback "
+                "WHERE transaction_id = :txn AND COALESCE(reviewer_id, '') = COALESCE(:reviewer, '')"
+            ), {"txn": transaction_id, "reviewer": reviewer_id or ""})
+            row = result.fetchone()
+            return row[0] if row else feedback_id
 
     _logger.info(
         "FeedbackStore: recorded outcome=%s txn=%r reviewer=%r id=%s",
@@ -156,18 +205,17 @@ async def record_pattern_update(
     """Write an audit trail entry for pattern threshold/weight changes."""
     update_id = f"pu_{uuid.uuid4().hex}"
     now = datetime.now(timezone.utc).isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
+    async with _get_engine().begin() as conn:
+        await conn.execute(text("""
             INSERT INTO pattern_updates
             (id, pattern_name, update_type, old_config, new_config,
              reason, triggered_by_feedback_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            update_id, pattern_name, update_type,
-            json.dumps(old_config), json.dumps(new_config),
-            reason, triggered_by_feedback_id, now,
-        ))
-        await db.commit()
+            VALUES (:id, :name, :utype, :old, :new, :reason, :ref, :now)
+        """), {
+            "id": update_id, "name": pattern_name, "utype": update_type,
+            "old": json.dumps(old_config), "new": json.dumps(new_config),
+            "reason": reason, "ref": triggered_by_feedback_id, "now": now,
+        })
     _logger.info(
         "FeedbackStore: pattern_update recorded pattern=%r type=%r id=%s",
         pattern_name, update_type, update_id,
@@ -176,29 +224,26 @@ async def record_pattern_update(
 
 
 async def get_feedback_stats() -> Dict[str, Any]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
+    async with _get_engine().connect() as conn:
+        result = await conn.execute(text(
             "SELECT outcome_label, COUNT(*) FROM feedback GROUP BY outcome_label"
-        ) as cur:
-            counts = {row[0]: row[1] async for row in cur}
+        ))
+        counts = {row[0]: row[1] for row in result.fetchall()}
 
-        async with db.execute("SELECT COUNT(*) FROM feedback") as cur:
-            row = await cur.fetchone()
-            total = row[0] if row else 0
+        result = await conn.execute(text("SELECT COUNT(*) FROM feedback"))
+        total = result.scalar() or 0
 
-        async with db.execute("""
-            SELECT outcome_label, AVG(system_risk_score)
-            FROM feedback GROUP BY outcome_label
-        """) as cur:
-            avg_scores = {row[0]: round(row[1], 2) async for row in cur}
+        result = await conn.execute(text(
+            "SELECT outcome_label, AVG(system_risk_score) "
+            "FROM feedback GROUP BY outcome_label"
+        ))
+        avg_scores = {row[0]: round(row[1], 2) for row in result.fetchall()}
 
-        async with db.execute("""
-            SELECT fraud_type_confirmed, COUNT(*)
-            FROM feedback
-            WHERE outcome_label = 'false_negative'
-            GROUP BY fraud_type_confirmed
-        """) as cur:
-            missed_types = {row[0]: row[1] async for row in cur}
+        result = await conn.execute(text(
+            "SELECT fraud_type_confirmed, COUNT(*) FROM feedback "
+            "WHERE outcome_label = 'false_negative' GROUP BY fraud_type_confirmed"
+        ))
+        missed_types = {row[0]: row[1] for row in result.fetchall()}
 
     tp = counts.get("true_positive", 0)
     fp = counts.get("false_positive", 0)
@@ -207,7 +252,6 @@ async def get_feedback_stats() -> Dict[str, Any]:
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else None
     recall = tp / (tp + fn) if (tp + fn) > 0 else None
-    # Explicit None checks: 0.0 is falsy in Python but is a valid precision/recall value
     if precision is not None and recall is not None and (precision + recall) > 0:
         f1 = 2 * precision * recall / (precision + recall)
     else:
@@ -229,13 +273,12 @@ async def get_feedback_stats() -> Dict[str, Any]:
 
 async def get_unprocessed_feedback(limit: int = 200) -> List[Dict[str, Any]]:
     """Return records not yet processed by the reputation updater (high-watermark)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM feedback WHERE processed_at IS NULL ORDER BY created_at ASC LIMIT ?",
-            (limit,),
-        ) as cur:
-            return [dict(row) async for row in cur]
+    async with _get_engine().connect() as conn:
+        result = await conn.execute(text(
+            "SELECT * FROM feedback WHERE processed_at IS NULL "
+            "ORDER BY created_at ASC LIMIT :limit"
+        ), {"limit": limit})
+        return [dict(row._mapping) for row in result.fetchall()]
 
 
 async def mark_feedback_processed(feedback_ids: List[str]) -> None:
@@ -243,31 +286,28 @@ async def mark_feedback_processed(feedback_ids: List[str]) -> None:
     if not feedback_ids:
         return
     now = datetime.now(timezone.utc).isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        placeholders = ",".join("?" * len(feedback_ids))
-        await db.execute(
-            f"UPDATE feedback SET processed_at = ? "
-            f"WHERE id IN ({placeholders}) AND processed_at IS NULL",
-            [now, *feedback_ids],
+    async with _get_engine().begin() as conn:
+        await conn.execute(
+            text(
+                "UPDATE feedback SET processed_at = :now "
+                "WHERE id IN :ids AND processed_at IS NULL"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"now": now, "ids": feedback_ids},
         )
-        await db.commit()
 
 
 async def get_recent_feedback(limit: int = 50) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM feedback ORDER BY created_at DESC LIMIT ?", (limit,)
-        ) as cur:
-            return [dict(row) async for row in cur]
+    async with _get_engine().connect() as conn:
+        result = await conn.execute(text(
+            "SELECT * FROM feedback ORDER BY created_at DESC LIMIT :limit"
+        ), {"limit": limit})
+        return [dict(row._mapping) for row in result.fetchall()]
 
 
 async def get_false_positives(limit: int = 20) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
+    async with _get_engine().connect() as conn:
+        result = await conn.execute(text(
             "SELECT * FROM feedback WHERE outcome_label = 'false_positive' "
-            "ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ) as cur:
-            return [dict(row) async for row in cur]
+            "ORDER BY created_at DESC LIMIT :limit"
+        ), {"limit": limit})
+        return [dict(row._mapping) for row in result.fetchall()]

@@ -9,7 +9,7 @@ import time
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agents._agent_base import sanitize, sanitize_list
-from app.agents._llm_clients import get_deep_llm
+from app.agents._llm_clients import deep_ainvoke
 from app.models.evidence import InvestigationPackage
 from app.models.fraud_decision import (
     AnalystRecommendation, ConsensusResult, CounterfactualResult, ExplainabilityResult,
@@ -63,7 +63,7 @@ async def run_storytelling_agent(
     )
 
     try:
-        resp = await get_deep_llm().ainvoke(
+        resp = await deep_ainvoke(
             [SystemMessage(content=_SYSTEM), HumanMessage(content=prompt)]
         )
         _logger.debug(

@@ -8,7 +8,9 @@ from app.config import settings
 
 
 def is_mock() -> bool:
-    return settings.mock_llm or not settings.anthropic_api_key.startswith("sk-ant-")
+    # startup validation (validate_production_config) ensures MOCK_LLM=false
+    # implies a valid Groq key, so checking the key prefix here is redundant
+    return settings.mock_llm
 
 
 def mock_behavior(package) -> dict:

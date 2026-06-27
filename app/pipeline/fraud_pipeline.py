@@ -13,7 +13,6 @@ Parallel agents run concurrently via asyncio.gather (LangGraph Fan-Out pattern).
 
 import asyncio
 import logging
-import threading
 import time
 from datetime import datetime
 from typing import TypedDict, Optional, Any
@@ -66,7 +65,7 @@ _ENABLE_STORYTELLING = True         # Set False to skip storytelling for faster 
 _DEDUP_MAX_SIZE = 10_000
 
 _background_tasks: set = set()      # Holds fire-and-forget task refs to prevent GC cancellation
-_graph_lock = threading.Lock()      # Serializes access to the shared fraud_graph singleton
+_graph_lock = asyncio.Lock()        # Serializes access to the shared fraud_graph singleton
 _seen_transaction_ids: set = set()  # In-memory dedup (bounded to _DEDUP_MAX_SIZE)
 
 
@@ -237,8 +236,8 @@ async def node_pre_agent_analysis(state: PipelineState) -> dict:
         prev_city, prev_ts,
     )
 
-    # Kill chain (needs sequence result); lock guards shared singleton
-    with _graph_lock:
+    # Kill chain (needs sequence result); async lock guards shared singleton without blocking event loop
+    async with _graph_lock:
         graph_signals_lite = fraud_graph.analyze(
             txn.user_id, txn.device_id, txn.ip_address, txn.merchant_id
         )
@@ -600,10 +599,18 @@ async def run_fraud_detection(
             f"user_id mismatch: transaction has '{txn.user_id}', profile has '{profile.user_id}'"
         )
 
-    # Bounded in-memory dedup — evicts oldest half when full
+    # Dedup — in-memory primary (fast, test-friendly) + Redis secondary (multi-instance)
     global _seen_transaction_ids
     if txn.transaction_id in _seen_transaction_ids:
         raise ValueError(f"Duplicate transaction_id: {txn.transaction_id}")
+
+    # Redis cross-instance dedup (best-effort — returns None if Redis unavailable)
+    redis_result = await feature_store.set_dedup(f"dedup:{txn.transaction_id}", ttl_secs=300)
+    if redis_result is False:
+        # Redis says another instance already processed this transaction
+        raise ValueError(f"Duplicate transaction_id: {txn.transaction_id}")
+
+    # Register in local in-memory set (evict oldest half when full)
     if len(_seen_transaction_ids) >= _DEDUP_MAX_SIZE:
         half = list(_seen_transaction_ids)
         _seen_transaction_ids = set(half[len(half) // 2:])

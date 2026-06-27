@@ -19,6 +19,7 @@ from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 # ---------------------------------------------------------------------------
 # anyio backend fixture (required for pytest-anyio / anyio 3.x)
@@ -32,26 +33,27 @@ def anyio_backend():
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _make_db(tmp_path: Path) -> str:
-    """Create and initialise a temporary SQLite DB; return its path."""
-    db_path = str(tmp_path / "test_feedback.db")
+async def _make_engine(tmp_path: Path):
+    """Create and initialise a temporary SQLite engine; return (engine, db_file_path)."""
     import app.feedback.feedback_store as fs
-    original = fs.DB_PATH
-    fs.DB_PATH = db_path
+    db_file = str(tmp_path / "test_feedback.db")
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_file}")
+    original = fs._engine
+    fs._engine = engine
     await fs.init_db()
-    fs.DB_PATH = original
-    return db_path
+    fs._engine = original
+    return engine, db_file
 
 
-async def _submit(db_path: str, **kwargs) -> str:
-    """Submit a feedback row using the patched DB_PATH."""
+async def _submit(engine: AsyncEngine, **kwargs) -> str:
+    """Submit a feedback row using the given engine."""
     import app.feedback.feedback_store as fs
-    original = fs.DB_PATH
-    fs.DB_PATH = db_path
+    original = fs._engine
+    fs._engine = engine
     try:
         return await fs.submit_feedback(**kwargs)
     finally:
-        fs.DB_PATH = original
+        fs._engine = original
 
 
 def _default_submit_kwargs(**overrides):
@@ -80,8 +82,8 @@ class TestFeedbackStore:
     async def test_full_uuid_hex_length(self, tmp_path):
         """feedback_id must be fb_ + 32 hex chars (full UUID, not truncated 10)."""
         from app.feedback.feedback_store import OutcomeLabel
-        db_path = await _make_db(tmp_path)
-        fb_id = await _submit(db_path, **_default_submit_kwargs())
+        engine, db_path = await _make_engine(tmp_path)
+        fb_id = await _submit(engine, **_default_submit_kwargs())
         assert fb_id.startswith("fb_")
         hex_part = fb_id[3:]
         assert len(hex_part) == 32, f"Expected 32-char hex, got {len(hex_part)}: {hex_part}"
@@ -89,9 +91,8 @@ class TestFeedbackStore:
     @pytest.mark.anyio
     async def test_submit_persists_to_db(self, tmp_path):
         """Submitted feedback must appear in the DB."""
-        import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        fb_id = await _submit(db_path, **_default_submit_kwargs())
+        engine, db_path = await _make_engine(tmp_path)
+        fb_id = await _submit(engine, **_default_submit_kwargs())
 
         async with aiosqlite.connect(db_path) as db:
             async with db.execute("SELECT id, device_id, merchant_id FROM feedback WHERE id = ?", (fb_id,)) as cur:
@@ -103,10 +104,10 @@ class TestFeedbackStore:
     @pytest.mark.anyio
     async def test_dedup_same_transaction_same_reviewer(self, tmp_path):
         """Same (transaction_id, reviewer_id) pair must be deduplicated."""
-        db_path = await _make_db(tmp_path)
+        engine, db_path = await _make_engine(tmp_path)
         kw = _default_submit_kwargs()
-        id1 = await _submit(db_path, **kw)
-        id2 = await _submit(db_path, **kw)
+        id1 = await _submit(engine, **kw)
+        id2 = await _submit(engine, **kw)
         # Second submission should return the existing id
         assert id1 == id2
         async with aiosqlite.connect(db_path) as db:
@@ -117,9 +118,9 @@ class TestFeedbackStore:
     @pytest.mark.anyio
     async def test_dedup_different_reviewers_allowed(self, tmp_path):
         """Different reviewers can submit feedback for the same transaction."""
-        db_path = await _make_db(tmp_path)
-        await _submit(db_path, **_default_submit_kwargs(reviewer_id="analyst_1"))
-        await _submit(db_path, **_default_submit_kwargs(reviewer_id="analyst_2"))
+        engine, db_path = await _make_engine(tmp_path)
+        await _submit(engine, **_default_submit_kwargs(reviewer_id="analyst_1"))
+        await _submit(engine, **_default_submit_kwargs(reviewer_id="analyst_2"))
         async with aiosqlite.connect(db_path) as db:
             async with db.execute("SELECT COUNT(*) FROM feedback") as cur:
                 row = await cur.fetchone()
@@ -128,9 +129,9 @@ class TestFeedbackStore:
     @pytest.mark.anyio
     async def test_dedup_null_reviewer_treated_as_same_group(self, tmp_path):
         """Two anonymous submissions (reviewer_id=None) for same transaction → deduplicated."""
-        db_path = await _make_db(tmp_path)
-        id1 = await _submit(db_path, **_default_submit_kwargs(reviewer_id=None))
-        id2 = await _submit(db_path, **_default_submit_kwargs(reviewer_id=None))
+        engine, db_path = await _make_engine(tmp_path)
+        id1 = await _submit(engine, **_default_submit_kwargs(reviewer_id=None))
+        id2 = await _submit(engine, **_default_submit_kwargs(reviewer_id=None))
         assert id1 == id2
         async with aiosqlite.connect(db_path) as db:
             async with db.execute("SELECT COUNT(*) FROM feedback") as cur:
@@ -140,9 +141,9 @@ class TestFeedbackStore:
     @pytest.mark.anyio
     async def test_notes_truncated_at_2000_chars(self, tmp_path):
         """Notes longer than 2000 chars must be truncated before storage."""
-        db_path = await _make_db(tmp_path)
+        engine, db_path = await _make_engine(tmp_path)
         long_notes = "x" * 5000
-        fb_id = await _submit(db_path, **_default_submit_kwargs(notes=long_notes, reviewer_id="r1"))
+        fb_id = await _submit(engine, **_default_submit_kwargs(notes=long_notes, reviewer_id="r1"))
         async with aiosqlite.connect(db_path) as db:
             async with db.execute("SELECT notes FROM feedback WHERE id = ?", (fb_id,)) as cur:
                 row = await cur.fetchone()
@@ -152,14 +153,14 @@ class TestFeedbackStore:
     async def test_high_watermark_unprocessed_returns_null_rows(self, tmp_path):
         """get_unprocessed_feedback must return rows with processed_at IS NULL."""
         import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        await _submit(db_path, **_default_submit_kwargs())
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        await _submit(engine, **_default_submit_kwargs())
+        original = fs._engine
+        fs._engine = engine
         try:
             rows = await fs.get_unprocessed_feedback()
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert len(rows) == 1
         assert rows[0]["processed_at"] is None
 
@@ -167,15 +168,15 @@ class TestFeedbackStore:
     async def test_mark_feedback_processed_sets_timestamp(self, tmp_path):
         """mark_feedback_processed must set processed_at on the given ids."""
         import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        fb_id = await _submit(db_path, **_default_submit_kwargs())
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        fb_id = await _submit(engine, **_default_submit_kwargs())
+        original = fs._engine
+        fs._engine = engine
         try:
             await fs.mark_feedback_processed([fb_id])
             rows = await fs.get_unprocessed_feedback()
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert len(rows) == 0  # now processed
         async with aiosqlite.connect(db_path) as db:
             async with db.execute("SELECT processed_at FROM feedback WHERE id = ?", (fb_id,)) as cur:
@@ -186,25 +187,25 @@ class TestFeedbackStore:
     async def test_mark_feedback_processed_is_idempotent(self, tmp_path):
         """Calling mark_feedback_processed twice must not raise or double-process."""
         import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        fb_id = await _submit(db_path, **_default_submit_kwargs())
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        fb_id = await _submit(engine, **_default_submit_kwargs())
+        original = fs._engine
+        fs._engine = engine
         try:
             await fs.mark_feedback_processed([fb_id])
             await fs.mark_feedback_processed([fb_id])  # second call must be a no-op
             rows = await fs.get_unprocessed_feedback()
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert len(rows) == 0
 
     @pytest.mark.anyio
     async def test_record_pattern_update_writes_audit_trail(self, tmp_path):
         """record_pattern_update must write a row to pattern_updates table."""
         import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        original = fs._engine
+        fs._engine = engine
         try:
             pu_id = await fs.record_pattern_update(
                 pattern_name="card_testing",
@@ -214,7 +215,7 @@ class TestFeedbackStore:
                 reason="5 false negatives",
             )
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert pu_id.startswith("pu_")
         async with aiosqlite.connect(db_path) as db:
             async with db.execute("SELECT pattern_name FROM pattern_updates WHERE id = ?", (pu_id,)) as cur:
@@ -226,20 +227,17 @@ class TestFeedbackStore:
         """F1 must be 0.0 (not None) when precision = 0.0 (all positives are FP)."""
         import app.feedback.feedback_store as fs
         from app.feedback.feedback_store import OutcomeLabel
-        db_path = await _make_db(tmp_path)
-        # Insert one FP (precision = 0/0+1 = 0.0) and no TP
-        await _submit(db_path, **_default_submit_kwargs(
+        engine, db_path = await _make_engine(tmp_path)
+        await _submit(engine, **_default_submit_kwargs(
             outcome_label=OutcomeLabel.false_positive,
             reviewer_id="r1",
         ))
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        original = fs._engine
+        fs._engine = engine
         try:
             stats = await fs.get_feedback_stats()
         finally:
-            fs.DB_PATH = original
-        # precision=0.0, recall=None (no TP+FN), f1=None is acceptable here
-        # Key check: f1 is not wrongly set to a non-zero value
+            fs._engine = original
         assert stats["metrics"]["f1_score"] is None or stats["metrics"]["f1_score"] == 0.0
 
     @pytest.mark.anyio
@@ -247,15 +245,15 @@ class TestFeedbackStore:
         """F1 must be computed correctly when both precision and recall are non-zero."""
         import app.feedback.feedback_store as fs
         from app.feedback.feedback_store import OutcomeLabel
-        db_path = await _make_db(tmp_path)
-        await _submit(db_path, **_default_submit_kwargs(outcome_label=OutcomeLabel.true_positive, reviewer_id="r1"))
-        await _submit(db_path, **_default_submit_kwargs(outcome_label=OutcomeLabel.false_positive, reviewer_id="r2", transaction_id="txn_002"))
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        await _submit(engine, **_default_submit_kwargs(outcome_label=OutcomeLabel.true_positive, reviewer_id="r1"))
+        await _submit(engine, **_default_submit_kwargs(outcome_label=OutcomeLabel.false_positive, reviewer_id="r2", transaction_id="txn_002"))
+        original = fs._engine
+        fs._engine = engine
         try:
             stats = await fs.get_feedback_stats()
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         # tp=1, fp=1, fn=0 → precision=0.5, recall=1.0, f1=2*0.5*1/1.5=0.6667
         assert stats["metrics"]["f1_score"] is not None
         assert abs(stats["metrics"]["f1_score"] - 0.6667) < 0.001
@@ -264,15 +262,15 @@ class TestFeedbackStore:
     async def test_get_recent_feedback_returns_rows(self, tmp_path):
         """get_recent_feedback must return submitted rows in descending order."""
         import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        await _submit(db_path, **_default_submit_kwargs(transaction_id="t1", reviewer_id="r1"))
-        await _submit(db_path, **_default_submit_kwargs(transaction_id="t2", reviewer_id="r2"))
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        await _submit(engine, **_default_submit_kwargs(transaction_id="t1", reviewer_id="r1"))
+        await _submit(engine, **_default_submit_kwargs(transaction_id="t2", reviewer_id="r2"))
+        original = fs._engine
+        fs._engine = engine
         try:
             rows = await fs.get_recent_feedback(limit=10)
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert len(rows) == 2
 
     @pytest.mark.anyio
@@ -280,15 +278,15 @@ class TestFeedbackStore:
         """get_false_positives must return only FP outcome rows."""
         import app.feedback.feedback_store as fs
         from app.feedback.feedback_store import OutcomeLabel
-        db_path = await _make_db(tmp_path)
-        await _submit(db_path, **_default_submit_kwargs(outcome_label=OutcomeLabel.true_positive, reviewer_id="r1"))
-        await _submit(db_path, **_default_submit_kwargs(outcome_label=OutcomeLabel.false_positive, reviewer_id="r2", transaction_id="t2"))
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        await _submit(engine, **_default_submit_kwargs(outcome_label=OutcomeLabel.true_positive, reviewer_id="r1"))
+        await _submit(engine, **_default_submit_kwargs(outcome_label=OutcomeLabel.false_positive, reviewer_id="r2", transaction_id="t2"))
+        original = fs._engine
+        fs._engine = engine
         try:
             fps = await fs.get_false_positives()
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert len(fps) == 1
         assert fps[0]["outcome_label"] == "false_positive"
 
@@ -296,13 +294,13 @@ class TestFeedbackStore:
     async def test_feedback_stats_empty_db(self, tmp_path):
         """get_feedback_stats on empty DB must return zeros without exceptions."""
         import app.feedback.feedback_store as fs
-        db_path = await _make_db(tmp_path)
-        original = fs.DB_PATH
-        fs.DB_PATH = db_path
+        engine, db_path = await _make_engine(tmp_path)
+        original = fs._engine
+        fs._engine = engine
         try:
             stats = await fs.get_feedback_stats()
         finally:
-            fs.DB_PATH = original
+            fs._engine = original
         assert stats["total_feedback"] == 0
         assert stats["metrics"]["precision"] is None
         assert stats["metrics"]["f1_score"] is None
@@ -315,7 +313,7 @@ class TestFeedbackStore:
 class TestPatternEvolution:
 
     def test_no_module_level_llm_init(self):
-        """pattern_evolution must not instantiate ChatAnthropic at import time."""
+        """pattern_evolution must not instantiate ChatOpenAI at import time."""
         import importlib
         import sys
         # Remove from cache to force fresh import
@@ -323,9 +321,9 @@ class TestPatternEvolution:
         for m in mods_to_remove:
             del sys.modules[m]
 
-        with patch("app.agents._llm_clients.ChatAnthropic") as mock_cls:
+        with patch("app.llm.grok_client.ChatOpenAI") as mock_cls:
             import app.feedback.pattern_evolution  # noqa: F401
-            # ChatAnthropic must NOT have been called at import time
+            # ChatOpenAI must NOT have been called at import time
             mock_cls.assert_not_called()
 
     def test_safe_notes_truncates_and_redacts(self):

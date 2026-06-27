@@ -41,17 +41,26 @@ Endpoints:
 """
 
 import json
+import logging
+import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, Query
+import structlog
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime, timezone
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.config import settings
+from app.config import settings, validate_production_config
 from app.models.transaction import Transaction
 from app.models.user_profile import UserProfile, UserType
 from app.models.fraud_decision import FraudDetectionResult
@@ -93,9 +102,10 @@ from app.simulation.label_leakage_detector import (
 
 # Feedback layer
 from app.feedback.feedback_store import (
-    init_db, submit_feedback, get_feedback_stats,
+    init_db, close_db, submit_feedback, get_feedback_stats,
     get_recent_feedback, get_false_positives, OutcomeLabel,
 )
+from app.llm.grok_client import log_startup_info
 from app.feedback.pattern_evolution import (
     adjust_pattern_weights_from_feedback, discover_emerging_patterns
 )
@@ -103,17 +113,66 @@ from app.feedback.reputation_updater import update_reputation_from_feedback, upd
 
 
 # ---------------------------------------------------------------------------
+# Logging configuration (structlog over stdlib)
+# ---------------------------------------------------------------------------
+
+def _configure_logging() -> None:
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.dev.ConsoleRenderer()
+            if settings.log_level.upper() == "DEBUG"
+            else structlog.processors.JSONRenderer(),
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+    logging.basicConfig(
+        format="%(message)s",
+        stream=sys.stdout,
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    )
+
+
+_logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
 
+_app_ready = False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _app_ready
+    _configure_logging()
+    validate_production_config()
+    log_startup_info()
+    _logger.info(
+        "Starting FraudGuard AI — env=%s redis=%s db=%s",
+        settings.app_env,
+        "upstash" if "upstash" in settings.redis_url else settings.redis_url.split("://")[0],
+        "postgresql" if "postgresql" in settings.database_url else "sqlite",
+    )
     await feature_store.connect()
     await init_db()
     await init_ground_truth_db()
     await _seed_demo_data()
+    _app_ready = True
+    _logger.info("FraudGuard AI startup complete — ready to serve requests")
     yield
+    _app_ready = False
     await feature_store.close()
+    await close_db()
 
 
 app = FastAPI(
@@ -123,19 +182,79 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-_ALLOWED_ORIGINS = [
+# ---------------------------------------------------------------------------
+# CORS — merge localhost defaults with env-configured production origins
+# ---------------------------------------------------------------------------
+_BASE_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8000",
 ]
+_extra_origins = [
+    o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()
+]
+_ALLOWED_ORIGINS = _BASE_ORIGINS + _extra_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
+
+# ---------------------------------------------------------------------------
+# API Key authentication middleware
+# ---------------------------------------------------------------------------
+_AUTH_EXEMPT = frozenset({"/health", "/live", "/ready", "/metrics", "/docs", "/openapi.json"})
+
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if settings.api_key and request.url.path not in _AUTH_EXEMPT:
+            provided = request.headers.get("x-api-key", "")
+            if provided != settings.api_key:
+                return JSONResponse(
+                    {"detail": "Invalid or missing API key. Pass it as X-API-Key header."},
+                    status_code=403,
+                )
+        return await call_next(request)
+
+
+app.add_middleware(APIKeyMiddleware)
+
+# ---------------------------------------------------------------------------
+# Request ID middleware — generate/propagate X-Request-ID for log correlation
+# ---------------------------------------------------------------------------
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
+
+# ---------------------------------------------------------------------------
+# Rate limiting (slowapi — per-IP, in-process)
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics — exposed at /metrics
+# ---------------------------------------------------------------------------
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app)
+except ImportError:
+    pass  # optional dependency; missing in CI if not installed
 
 
 # ---------------------------------------------------------------------------
@@ -156,10 +275,16 @@ class DetectResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+_profiles_cache: Optional[dict] = None
+
+
 def _load_profiles() -> dict:
-    path = Path(__file__).parent / "data" / "user_profiles.json"
-    with open(path) as f:
-        return json.load(f)
+    global _profiles_cache
+    if _profiles_cache is None:
+        path = Path(__file__).parent / "data" / "user_profiles.json"
+        with open(path) as f:
+            _profiles_cache = json.load(f)
+    return _profiles_cache
 
 
 def _get_profile(user_id: str) -> UserProfile:
@@ -173,16 +298,42 @@ def _get_profile(user_id: str) -> UserProfile:
 # Routes
 # ---------------------------------------------------------------------------
 
+@app.get("/live")
+async def liveness():
+    """Kubernetes/Render liveness probe — always returns 200 while process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/ready")
+async def readiness():
+    """Kubernetes/Render readiness probe — returns 200 only after startup completes."""
+    if not _app_ready:
+        raise HTTPException(status_code=503, detail="Application is still initializing")
+    return {"status": "ready"}
+
+
 @app.get("/health")
 async def health():
+    redis_ok = await feature_store.ping()
+
+    db_ok = False
     try:
-        await feature_store._redis.ping()
-        redis_ok = True
+        from sqlalchemy import text
+        from app.feedback.feedback_store import _get_engine
+        async with _get_engine().connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        db_ok = True
     except Exception:
-        redis_ok = False
+        db_ok = False
+
+    overall = "ok" if (redis_ok and db_ok) else "degraded"
     return {
-        "status": "ok" if redis_ok else "degraded",
+        "status": overall,
         "redis": "connected" if redis_ok else "disconnected",
+        "database": "connected" if db_ok else "disconnected",
+        "ready": _app_ready,
+        "version": "1.0.0",
+        "provider": "Groq" if not settings.mock_llm else "MockLLM",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -206,7 +357,8 @@ async def get_profile(user_id: str):
 
 
 @app.post("/detect", response_model=DetectResponse)
-async def detect_fraud(req: DetectRequest):
+@limiter.limit("30/minute")
+async def detect_fraud(request: Request, req: DetectRequest):
     profile = _get_profile(req.user_id)
     txn = req.transaction
     txn.user_id = req.user_id
@@ -221,7 +373,8 @@ async def graph_summary(user_id: str):
 
 
 @app.post("/seed")
-async def seed_data():
+@limiter.limit("5/minute")
+async def seed_data(request: Request):
     await _seed_demo_data()
     return {"status": "seeded", "message": "Demo data loaded into Redis"}
 
@@ -547,7 +700,8 @@ class FeedbackSubmitRequest(BaseModel):
 
 
 @app.post("/feedback/submit")
-async def submit_feedback_endpoint(req: FeedbackSubmitRequest):
+@limiter.limit("30/minute")
+async def submit_feedback_endpoint(request: Request, req: FeedbackSubmitRequest):
     try:
         label = OutcomeLabel(req.outcome_label)
     except ValueError:
@@ -588,7 +742,8 @@ async def feedback_false_positives(limit: int = Query(default=20, le=100)):
 
 
 @app.post("/feedback/evolve")
-async def trigger_pattern_evolution(use_llm: bool = Query(default=False)):
+@limiter.limit("5/minute")
+async def trigger_pattern_evolution(request: Request, use_llm: bool = Query(default=False)):
     """
     Trigger pattern evolution.
     use_llm=false (default): deterministic weight adjustment (CORE, fast).
@@ -711,7 +866,8 @@ async def simulate_ring(req: RingRequest):
 
 
 @app.post("/simulate/full")
-async def simulate_full(req: FullSimulationRequest):
+@limiter.limit("5/minute")
+async def simulate_full(request: Request, req: FullSimulationRequest):
     """Full simulation: personas + campaigns + rings + adversarial mutations."""
     results = {
         "persona_count": req.persona_count,

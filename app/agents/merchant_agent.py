@@ -14,7 +14,7 @@ from app.agents._agent_base import (
     sanitize_list,
     SUMMARY_MAX_CHARS,
 )
-from app.agents._llm_clients import get_fast_llm
+from app.agents._llm_clients import fast_ainvoke
 from app.models.evidence import InvestigationPackage
 
 _logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ async def run_merchant_agent(package: InvestigationPackage) -> dict:
     )
 
     try:
-        resp = await get_fast_llm().ainvoke(
+        resp = await fast_ainvoke(
             [SystemMessage(content=_SYSTEM), HumanMessage(content=prompt)]
         )
         data = parse_llm_json(resp.content, _AGENT_NAME)

@@ -78,7 +78,7 @@ const MERCHANTS = [
 const CITIES = ['New York', 'London', 'Singapore', 'Tokyo', 'Lagos', 'Dubai', 'Paris', 'Berlin']
 const COUNTRIES = ['US', 'GB', 'SG', 'JP', 'NG', 'AE', 'FR', 'DE']
 const USERS = ['alice_johnson', 'bob_smith', 'carlos_mendez', 'diana_prince', 'evan_chen']
-const CHANNELS = ['online', 'pos', 'mobile', 'atm']
+const CHANNELS = ['online', 'in-store', 'atm']
 
 export function generateMockTransaction(): import('@/types').Transaction {
   const [merchant, category] = MERCHANTS[Math.floor(Math.random() * MERCHANTS.length)]

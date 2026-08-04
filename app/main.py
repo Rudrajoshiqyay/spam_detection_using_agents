@@ -71,6 +71,7 @@ from app.pipeline.fraud_pipeline import run_fraud_detection
 # Synthetic data
 from app.synthetic.user_generator import generate_user_batch
 from app.synthetic.transaction_generator import generate_transaction_batch, transactions_to_jsonl
+from app.synthetic.csv_loader import load_csv_transactions
 from app.scenario.scenario_builder import build_scenario, PRESET_SCENARIOS
 
 # Simulation upgrade
@@ -622,6 +623,31 @@ class GenerateTransactionsRequest(BaseModel):
     fraud_rate: float = 0.05
     span_days: int = 7
     format: str = "json"   # "json" | "jsonl"
+
+
+class GenerateFromCsvRequest(BaseModel):
+    filename: str = "bs140513_032310.csv"
+    limit: int = 100
+
+
+@app.post("/generate/from-csv")
+async def generate_from_csv(req: GenerateFromCsvRequest):
+    try:
+        transactions = load_csv_transactions(req.filename, req.limit)
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+    
+    results = []
+    for txn in transactions:
+        profile = _get_profile(txn.user_id)
+        res = await run_fraud_detection(txn, profile)
+        results.append(res)
+    
+    return {
+        "status": "success",
+        "processed_count": len(results),
+        "results": results
+    }
 
 
 class BuildScenarioRequest(BaseModel):

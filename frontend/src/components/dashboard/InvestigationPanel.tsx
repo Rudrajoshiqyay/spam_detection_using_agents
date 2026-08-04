@@ -14,7 +14,7 @@ interface InvestigationPanelProps {
 export function InvestigationPanel({ transaction: t, onClose }: InvestigationPanelProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleFeedback = async (outcomeLabel: 'true_positive' | 'false_positive') => {
+  const handleFeedback = async (outcomeLabel: 'true_positive' | 'false_positive' | 'true_negative' | 'false_negative') => {
     if (!t || !t.decision) return;
     setIsSubmitting(true);
     try {
@@ -23,7 +23,7 @@ export function InvestigationPanel({ transaction: t, onClose }: InvestigationPan
         user_id: t.user_id,
         system_decision: t.decision.decision,
         system_risk_score: t.riskScore ?? 0,
-        analyst_decision: outcomeLabel === 'true_positive' ? 'block' : 'approve',
+        analyst_decision: (outcomeLabel === 'true_positive' || outcomeLabel === 'false_negative') ? 'block' : 'approve',
         outcome_label: outcomeLabel,
         device_id: t.device_id,
         merchant_id: t.merchant_id,
@@ -207,14 +207,26 @@ export function InvestigationPanel({ transaction: t, onClose }: InvestigationPan
                 <button 
                   disabled={isSubmitting}
                   onClick={() => handleFeedback('true_positive')}
-                  className="text-xs py-2 px-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors font-medium disabled:opacity-50">
-                  ✓ Confirm Fraud
+                  className="text-[10px] py-2 px-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors font-medium disabled:opacity-50">
+                  ✓ Correct (Fraud)
                 </button>
                 <button 
                   disabled={isSubmitting}
                   onClick={() => handleFeedback('false_positive')}
-                  className="text-xs py-2 px-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-colors font-medium disabled:opacity-50">
+                  className="text-[10px] py-2 px-2 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500/20 transition-colors font-medium disabled:opacity-50">
                   ✗ False Positive
+                </button>
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => handleFeedback('true_negative')}
+                  className="text-[10px] py-2 px-2 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors font-medium disabled:opacity-50">
+                  ✓ Correct (Approved)
+                </button>
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => handleFeedback('false_negative')}
+                  className="text-[10px] py-2 px-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-colors font-medium disabled:opacity-50">
+                  ✗ Missed Fraud
                 </button>
               </div>
             </div>

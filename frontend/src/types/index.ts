@@ -14,6 +14,8 @@ export interface Transaction {
   merchant_category: string;
   location_city: string;
   location_country: string;
+  latitude: number;
+  longitude: number;
   device_id: string;
   channel: string;
   transaction_type: string;

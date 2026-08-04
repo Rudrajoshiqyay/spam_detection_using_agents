@@ -96,6 +96,8 @@ export function generateMockTransaction(): import('@/types').Transaction {
     merchant_category: category,
     location_city: CITIES[cityIdx],
     location_country: COUNTRIES[cityIdx],
+    latitude: 40.7128,
+    longitude: -74.0060,
     device_id: `dev_${Math.floor(Math.random() * 20)}`,
     channel: CHANNELS[Math.floor(Math.random() * CHANNELS.length)],
     transaction_type: 'purchase',

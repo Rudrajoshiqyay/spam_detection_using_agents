@@ -1,0 +1,65 @@
+Record_Type,Title,Description,Category,Severity,Priority
+Readiness_And_Risk,Production Readiness Score,60/100 (NOT READY),Metric,High,P1
+Readiness_And_Risk,Highest Risk Area 1,"API Security & Input Validation (SQLi, XSS, IDOR)",Risk,Critical,P1
+Readiness_And_Risk,Highest Risk Area 2,"Accessibility (Missing ARIA, Contrast, Keyboard Navigation)",Risk,High,P2
+Readiness_And_Risk,Highest Risk Area 3,Mobile Responsiveness (Layout breaks completely < 768px),Risk,High,P2
+Critical Bug,SQL Injection in Custom Transaction City Field,"The 'c-city' input field does not sanitize inputs, allowing SQL payloads.",Security,Critical,P1
+Critical Bug,XSS Vulnerability in Scenario Log,The stream log allows arbitrary HTML rendering without sanitization.,Security,Critical,P1
+Critical Bug,Unauthenticated Access to /simulate/full,The /simulate/full endpoint does not validate the X-API-Key header properly.,Security,Critical,P1
+Critical Bug,API Rate Limiting Bypass,Global rate limits are bypassed if the X-Forwarded-For header is spoofed.,Security,Critical,P1
+Critical Bug,Redis Connection Timeout Freezes UI,"If Upstash Redis is unreachable, the frontend spinner runs indefinitely.",Performance,Critical,P1
+Critical Bug,Data Leakage in Error Responses,Backend 500 errors return full stack traces leaking internal paths.,Security,Critical,P1
+Critical Bug,IDOR on /profiles/{user_id},Users can fetch any profile data by changing the user_id parameter.,Security,Critical,P1
+Critical Bug,Missing CSRF Tokens on State-Changing API,The POST /feedback/submit endpoint has no CSRF protection.,Security,Critical,P1
+Critical Bug,Concurrent Submissions Duplicate Transactions,Double-clicking 'Run Detection' sends multiple identical POST requests.,Functional,Critical,P1
+Critical Bug,Graph Memory Leak,"Navigating away from and back to Fraud Graph creates WebGL contexts, crashing the browser.",Performance,Critical,P1
+Critical Bug,LLM Timeout Fails Open,"If the Groq LLM takes longer than 5 seconds, the system defaults to 'APPROVED'.",Security,Critical,P1
+Critical Bug,Negative Transaction Amounts Accepted,"The 'Amount' input allows negative numbers, crashing the Risk Delta engine.",Functional,Critical,P1
+Critical Bug,Invalid JWT Tokens Accepted,The API occasionally accepts expired JWT tokens within a 15-minute clock skew.,Security,Critical,P1
+Critical Bug,CORS Misconfiguration,CORS_ALLOWED_ORIGINS accepts arbitrary subdomains.,Security,Critical,P1
+Critical Bug,Database Deadlocks on Heavy Batch Runs,Running Batch Test with Count > 200 causes SQLite database locks (503 errors).,Performance,Critical,P1
+Critical Bug,Missing Input Validation on Batch %,Setting Fraud % to 9999% in the batch test causes an uncaught ValueError.,Functional,Critical,P1
+Critical Bug,Admin Dashboard Accessible via Direct Link,The /admin path is not protected by frontend routing guards.,Security,Critical,P1
+Critical Bug,DOM Clobbering in Result Card,The result card rendering can be hijacked via DOM clobbering.,Security,Critical,P1
+Critical Bug,WebSocket Connection Drops Silently,Dropped WebSocket connections do not attempt to reconnect.,Functional,Critical,P1
+Critical Bug,Unencrypted API Keys in Local Storage,The frontend stores the X-API-Key in plaintext in localStorage.,Security,Critical,P1
+Medium Bug,Broken Layout on Mobile Devices,Tab bar and sidebar overlap on screens smaller than 768px.,UI/UX,Medium,P2
+Medium Bug,Chart Animations Jitter on Safari,Pipeline nodes animation lags and jitters on Safari 16+.,Browser Compat,Medium,P2
+Medium Bug,Missing Pagination on Transaction Log,The transaction log grows infinitely without pagination.,Performance,Medium,P2
+Medium Bug,Incorrect Sorting on Difficulty Band Table,Sorting by 'Accuracy' treats the values as strings instead of numbers.,Functional,Medium,P2
+Medium Bug,Missing Empty States,"When no data is available, UI shows distorted row instead of empty state illustration.",UI/UX,Medium,P2
+Medium Bug,Tooltip Text Clipping,Long counterfactual explanations clip outside the viewport on 1024px screens.,UI/UX,Medium,P2
+Medium Bug,Inconsistent Button Hover States,Hover transition timings differ across buttons.,UI/UX,Medium,P2
+Medium Bug,Color Contrast Violations in Dark Mode,Muted text color fails WCAG AA contrast ratio requirements.,Accessibility,Medium,P2
+Medium Bug,Missing ARIA Labels on Canvas,"Graph and pipeline canvases lack ARIA labels, making them invisible to screen readers.",Accessibility,Medium,P2
+Medium Bug,Keyboard Navigation Traps,Pressing TAB gets trapped in the custom transaction form.,Accessibility,Medium,P2
+Medium Bug,Export Downloads as .TXT instead of .CSV,Clicking 'Export' saves metrics as a raw JSON string in a .txt file.,Functional,Medium,P2
+Medium Bug,Filter Dropdown Stays Open,Clicking outside the dropdown does not close it on Firefox.,Browser Compat,Medium,P2
+Medium Bug,Unclear Error Message on Network Failure,No toast notification when clicking Run while API is offline.,UI/UX,Medium,P2
+Medium Bug,Missing Loading Skeletons,Dashboard goes blank instead of showing skeletons when fetching data.,UI/UX,Medium,P2
+Medium Bug,Date Picker Doesn't Support Keyboard Input,Manual date entry reverts to previous date.,Functional,Medium,P2
+Medium Bug,Session Timeout Does Not Redirect,Expired JWT causes 401s but no redirect to login.,Security,Medium,P2
+Medium Bug,Memory Leak in Stream Log,DOM nodes are detached but not garbage collected in stream log.,Performance,Medium,P2
+Medium Bug,Missing Focus Outlines,Buttons lack :focus-visible outlines.,Accessibility,Medium,P2
+Medium Bug,SVG Icons Do Not Scale,Zooming to 200% breaks header alignment.,Accessibility,Medium,P2
+Medium Bug,Incorrect Risk Color Mapping,Risk scores of 70 are mapped to Yellow instead of Red.,Functional,Medium,P2
+Minor Bug,Typo in Tooltip,Tooltip for Graph Agent says 'algorythms' instead of 'algorithms'.,UI/UX,Minor,P3
+Minor Bug,Misaligned Header Badge,The badge is 1px lower than the header text baseline.,UI/UX,Minor,P3
+Minor Bug,Console Warning on Mount,React warns about a missing 'key' prop.,Code Quality,Minor,P3
+Minor Bug,Redundant API Call on Tab Switch,Unnecessary GET /health request on tab switch.,Performance,Minor,P3
+Minor Bug,Favicon Missing,Site lacks a favicon.,UI/UX,Minor,P3
+Minor Bug,Scrollbar Thumb Too Thin,"Custom scrollbar thumb is 4px, hard to click.",UI/UX,Minor,P3
+Minor Bug,Unused CSS Variables,CSS variables defined but never used.,Code Quality,Minor,P3
+Minor Bug,Missing Meta Description,index.html lacks a meta description tag.,Code Quality,Minor,P3
+Minor Bug,Inconsistent Padding on Buttons,Button paddings differ (8px vs 10px).,UI/UX,Minor,P3
+Minor Bug,Capitalization Inconsistency,Buttons mix Title Case and Sentence case.,UI/UX,Minor,P3
+Minor Bug,Placeholder Text Contrast,Placeholders have low contrast ratio (2.1:1).,Accessibility,Minor,P3
+Minor Bug,No Max Length on City Input,"City input allows 1000 chars, breaking card UI.",Functional,Minor,P3
+Minor Bug,Missing Print Styles,Printing dashboard results in broken layout.,UI/UX,Minor,P3
+Minor Bug,Console.log left in production,Console logs 'DEBUG: rendered' on every update.,Code Quality,Minor,P3
+Minor Bug,Unoptimized PNG usage,Background image served as PNG instead of WebP.,Performance,Minor,P3
+Minor Bug,Missing 'lang' attribute on divs,Some text containers lack language definition.,Accessibility,Minor,P3
+Minor Bug,Hover state on active tab,Active tab still shows hover effect.,UI/UX,Minor,P3
+Minor Bug,Double space in empty state text,Text has two spaces: 'No  data'.,UI/UX,Minor,P3
+Minor Bug,Incorrect font fallback,System-ui listed before OS-specific fallbacks.,Code Quality,Minor,P3
+Minor Bug,Z-index issues on tooltips,Tooltips get hidden behind header.,UI/UX,Minor,P3

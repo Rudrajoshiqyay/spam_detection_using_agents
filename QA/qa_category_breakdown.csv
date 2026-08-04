@@ -1,0 +1,6 @@
+System_Area,Bug_Types_Description,Bug_Count
+Database & Data Layer,"SQL Injection, Deadlocks, Data Leakage",8
+API & Backend,"Auth bypass, CSRF, Expired JWTs, Rate limit bypass, CORS",14
+Frontend & UI/UX,"Mobile layout, Missing states, Jittering animations, Hover states",21
+Accessibility,"Keyboard traps, Focus outlines, ARIA labels, Contrast",10
+Performance & Resource,"WebGL Memory Leaks, DOM Memory Leaks, Redis Timeouts",7

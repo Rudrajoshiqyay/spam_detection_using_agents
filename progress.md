@@ -1,6 +1,6 @@
 # FraudGuard AI — Project Progress
 
-## Last Updated: 2026-06-26 (Frontend Sprint COMPLETE)
+## Last Updated: 2026-06-26 (Grok Migration COMPLETE)
 
 ---
 
@@ -9,6 +9,7 @@
 fraud-detection-system/
 ├── app/
 │   ├── agents/          ← All 10 LLM agents (behavior, device, geo, merchant, graph, investigation, counterfactual, explainability, analyst, storytelling)
+│   ├── llm/             ← Shared Grok (xAI) client — get_fast_llm() / get_deep_llm()
 │   ├── feedback/        ← feedback_store, pattern_evolution, reputation_updater
 │   ├── models/          ← transaction, user_profile, evidence, fraud_decision
 │   ├── pipeline/        ← fraud_pipeline (main orchestrator)
@@ -459,6 +460,33 @@ npm install
 npm run dev     # → http://localhost:3000 (proxies /api to :8000)
 npm run build   # production build to dist/
 ```
+
+### ✅ GROK MIGRATION COMPLETE (2026-06-26)
+
+**LLM provider replaced: Anthropic Claude → xAI Grok**
+
+**Files modified:**
+- `app/llm/grok_client.py` (NEW): Lazy-initialized shared `get_fast_llm()` / `get_deep_llm()` using `ChatOpenAI` with `base_url=https://api.x.ai/v1`
+- `app/llm/__init__.py` (NEW): Package init
+- `app/agents/_llm_clients.py`: Thin re-export shim — delegates to `app.llm.grok_client`
+- `app/agents/mock_llm.py`: `is_mock()` now checks `xai_api_key.startswith("xai-")` (was `sk-ant-`)
+- `app/config.py`: `anthropic_api_key` → `xai_api_key`; `fast_model` default → `grok-4-fast`; `deep_model` default → `grok-4`
+- `.env`: `ANTHROPIC_API_KEY` removed; `XAI_API_KEY`, `FAST_MODEL`, `DEEP_MODEL` added
+- `.env.example`: Updated to Grok keys
+- `requirements.txt`: `langchain-anthropic`, `anthropic` removed; `langchain-openai`, `openai` added
+- `tests/test_agents.py`: Monkeypatch targets updated to `app.llm.grok_client.ChatOpenAI`/`_fast`/`_deep`
+- `tests/test_feedback.py`: Patch target updated to `app.llm.grok_client.ChatOpenAI`
+
+**Environment variables required:**
+```
+XAI_API_KEY=xai-...
+FAST_MODEL=grok-4-fast
+DEEP_MODEL=grok-4
+```
+
+**API compatibility:** xAI Grok exposes an OpenAI-compatible REST API at `https://api.x.ai/v1`. `langchain-openai`'s `ChatOpenAI` is used with `base_url` overridden — zero interface change to calling agents.
+
+**No fraud detection logic was modified.**
 
 ### 🔲 TODO (remaining backlog)
 - [ ] REC-02: Add API authentication (JWT or API key) → +8 Security

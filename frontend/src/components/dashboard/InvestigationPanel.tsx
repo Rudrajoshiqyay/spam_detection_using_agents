@@ -1,7 +1,9 @@
 import { X, Shield, AlertTriangle, CheckCircle, Brain, GitBranch, MessageSquare, Zap, TrendingDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
 import { cn, riskColor, formatAmount, formatDate, decisionColor } from '@/lib/utils'
 import { RiskGauge } from './RiskGauge'
+import { apiFeedbackSubmit } from '@/api/client'
 import type { LiveTransaction } from '@/types'
 
 interface InvestigationPanelProps {
@@ -10,6 +12,33 @@ interface InvestigationPanelProps {
 }
 
 export function InvestigationPanel({ transaction: t, onClose }: InvestigationPanelProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFeedback = async (outcomeLabel: 'true_positive' | 'false_positive') => {
+    if (!t || !t.decision) return;
+    setIsSubmitting(true);
+    try {
+      await apiFeedbackSubmit({
+        transaction_id: t.transaction_id,
+        user_id: t.user_id,
+        system_decision: t.decision.decision,
+        system_risk_score: t.riskScore ?? 0,
+        analyst_decision: outcomeLabel === 'true_positive' ? 'block' : 'approve',
+        outcome_label: outcomeLabel,
+        device_id: t.device_id,
+        merchant_id: t.merchant_id,
+        notes: "Submitted via Analyst Dashboard",
+        reviewer_id: "analyst_001"
+      });
+      alert(`Feedback submitted successfully! Row added to database.`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit feedback.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {t && (
@@ -175,10 +204,16 @@ export function InvestigationPanel({ transaction: t, onClose }: InvestigationPan
             <div className="px-5 py-4 border-t border-gray-800">
               <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-2">Submit Analyst Feedback</div>
               <div className="grid grid-cols-2 gap-2">
-                <button className="text-xs py-2 px-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors font-medium">
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => handleFeedback('true_positive')}
+                  className="text-xs py-2 px-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors font-medium disabled:opacity-50">
                   ✓ Confirm Fraud
                 </button>
-                <button className="text-xs py-2 px-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-colors font-medium">
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => handleFeedback('false_positive')}
+                  className="text-xs py-2 px-3 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-colors font-medium disabled:opacity-50">
                   ✗ False Positive
                 </button>
               </div>

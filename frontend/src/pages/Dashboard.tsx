@@ -35,7 +35,7 @@ export function Dashboard() {
     let decision: ReturnType<typeof generateMockDecision>
     let riskScore: number
     try {
-      const { result } = await apiDetect(tx, `analyst_${Math.random().toString(36).slice(2, 7)}`)
+      const { result } = await apiDetect(tx, tx.user_id)
       decision = result
       riskScore = result.risk_score
     } catch {

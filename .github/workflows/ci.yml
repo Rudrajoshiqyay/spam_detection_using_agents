@@ -17,6 +17,7 @@ jobs:
 
     env:
       # Test environment — uses mock LLM and in-memory Redis, no real credentials needed
+      PYTHONPATH: "."
       MOCK_LLM: "true"
       USE_FAKE_REDIS: "true"
       DATABASE_URL: "sqlite+aiosqlite:///./test_fraud.db"
@@ -43,6 +44,7 @@ jobs:
 
       - name: Run unit & integration tests
         run: |
+          pip install pytest pytest-timeout pytest-asyncio httpx --quiet
           pytest tests/ -x -q \
             --tb=short \
             --timeout=120 \

@@ -212,6 +212,17 @@
 
 ---
 
+## Data Flow: From Deterministic Math to LLM Context (The Evidence Builder)
+
+The system bridges the gap between fast, raw mathematical signals and intelligent LLM reasoning using the **Evidence Builder Service**. This step is critical for minimizing latency, reducing LLM token costs, and maximizing explainability.
+
+1. **Deterministic Services (e.g., NetworkX)**: Services like the Graph Intelligence Layer process raw data. For example, NetworkX detects if multiple accounts are using the same device and outputs raw flags (e.g., `{"shared_device_flag": True}`).
+2. **Translation & Scrubbing (Evidence Builder)**: The Evidence Builder intercepts these raw dictionaries. It translates boolean flags into human-readable evidence strings (e.g., `"Device used by multiple accounts"`), scores their strength (Weak/Medium/Strong), and scrubs all fields of PII and potential prompt-injection attacks.
+3. **The Investigation Package**: It bundles all these translated signals into a single, token-optimized JSON object called the `InvestigationPackage`.
+4. **LangGraph Parallel Agents**: The LangGraph orchestrator (`fraud_pipeline.py`) takes this single package and uses `asyncio.gather` to feed exact copies of it to **5 parallel LLM agents** simultaneously. Because the evidence is already translated into clear text, the LLMs can instantly comprehend the signals without performing complex math themselves.
+
+---
+
 ## Latency Budget
 
 | Stage | Target | Notes |

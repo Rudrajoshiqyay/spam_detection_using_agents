@@ -4,11 +4,35 @@ Bank-grade fraud detection system powered by LangGraph multi-agent orchestration
 
 ## Architecture
 
-```
-Transaction → Feature Store → Fast Screening → Fraud Pattern Matching
-→ Sequence Intelligence → Kill Chain → Cohort Analysis → Graph Intelligence
-→ 5 Parallel AI Agents → Consensus → Investigation → Counterfactual
-→ Explainability → Analyst Recommendation → Storytelling → Final Decision
+```mermaid
+flowchart TD
+    Txn([💳 Incoming Transaction])
+    
+    Txn --> FS[(🗄️ Redis Feature Store)]
+    FS --> Screen[⚡ Fast Screening]
+    
+    Screen --> Det[🔍 Deterministic Rules]
+    Screen --> Graph[🕸️ Graph Intelligence]
+    Screen --> Seq[⏱️ Sequence & Kill Chain]
+    
+    Det --> Evid[📦 Evidence Builder]
+    Graph --> Evid
+    Seq --> Evid
+    
+    Evid --> Agents[🤖 5 Parallel AI Agents]
+    
+    Agents --> Cons[⚖️ Consensus Engine]
+    
+    Cons --> Inv[🕵️ Investigation]
+    Cons --> CF[🔄 Counterfactual]
+    
+    Inv --> Exp[💡 Explainability]
+    CF --> Exp
+    
+    Exp --> Analyst[👨‍💻 Analyst Recommendation]
+    Analyst --> Story[📖 Storytelling]
+    
+    Story --> Final([🛑 Final Decision])
 ```
 
 17-node LangGraph pipeline with 10 LLM agents running on Groq (llama-3.1-8b-instant / llama-3.3-70b-versatile).
